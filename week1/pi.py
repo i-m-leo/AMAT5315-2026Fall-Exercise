@@ -17,4 +17,4 @@ def estimate_pi(n, seed):
         if x * x + y * y <= 1.0:
             inside_circle += 1
 
-    return 1 * inside_circle / n
+    return 4 * inside_circle / n
