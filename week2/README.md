@@ -114,18 +114,3 @@ The published `docs/run.json` and `docs/traj.jsonl` contain 400 particles and
 are under 2 MB. The Pages viewer loads `docs/run.json` and `docs/traj.jsonl`
 automatically, so the temperature history rises from 0.2 to 1.2 without a
 login.
-
-The published heating trajectory and the two videos can be reproduced from
-`week2/` with:
-
-```bash
-md/target/release/md run --n 100 --rho 0.8 --temperature 0.5 \
-  --ramp-to 1.0 --dt 0.01 --eq-steps 2000 --steps 10000 \
-  --sample-every 50 --seed 2026 --out ../docs/heating
-
-md/target/release/md video artifacts --out fluid.mp4
-md/target/release/md video ../docs/heating --out heating.mp4
-```
-
-The first video uses the default production trajectory; the second uses the
-temperature-ramped heating trajectory in `docs/heating/`.
