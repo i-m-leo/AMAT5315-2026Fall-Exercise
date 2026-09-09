@@ -3,6 +3,14 @@ pub fn greeting() -> &'static str {
     "Hello, world!"
 }
 
+pub mod fluid;
+mod simulation;
+
+pub use simulation::{
+    run_dimer_experiment, DimerState, EnergySample, ForwardEuler, Integrator, TimeIntegrator,
+    VelocityVerlet,
+};
+
 /// Returns the Lennard-Jones pair energy at a separation in reduced units.
 pub fn lennard_jones_pair_energy(distance: f64) -> f64 {
     let inverse_distance_sixth = distance.recip().powi(6);
