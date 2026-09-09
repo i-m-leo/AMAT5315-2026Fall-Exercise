@@ -1,5 +1,5 @@
-use clap::{Args, Parser, Subcommand};
-use md::fluid::{check_artifacts, run_fluid, write_artifacts, FluidConfig, MdError};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use md::fluid::{check_artifacts, run_fluid, write_artifacts, FluidConfig, ForceMethod, MdError};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -40,6 +40,14 @@ struct RunArgs {
     seed: u64,
     #[arg(long, default_value = "artifacts")]
     out: PathBuf,
+    #[arg(long, value_enum, default_value_t = ForceArg::Cells)]
+    force: ForceArg,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ForceArg {
+    Naive,
+    Cells,
 }
 
 #[derive(Args)]
@@ -88,6 +96,10 @@ fn execute(cli: Cli) -> Result<ExitCode, MdError> {
                 steps: args.steps,
                 sample_every: args.sample_every,
                 seed: args.seed,
+                force_method: match args.force {
+                    ForceArg::Naive => ForceMethod::Naive,
+                    ForceArg::Cells => ForceMethod::Cells,
+                },
                 ..FluidConfig::default()
             };
             let simulation = run_fluid(&config)?;

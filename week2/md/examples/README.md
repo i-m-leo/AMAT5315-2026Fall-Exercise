@@ -22,6 +22,9 @@ This is equivalent to:
 /opt/homebrew/bin/cargo run --release --manifest-path md/Cargo.toml -- run --out artifacts
 ```
 
+The default `--force cells` uses the periodic nine-cell neighbor list. Use
+`--force naive` to run the original all-pairs reference implementation.
+
 It writes `artifacts/run.json` and `artifacts/traj.jsonl`. Check the saved
 trajectory by recomputing its physical quantities with:
 

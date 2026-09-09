@@ -41,6 +41,7 @@ fn run_writes_viewer_compatible_artifacts_and_check_passes() {
     let metadata: Value =
         serde_json::from_slice(&fs::read(output.join("run.json")).unwrap()).unwrap();
     assert_eq!(metadata["format"], "amat5315-md-v1");
+    assert_eq!(metadata["force"], "cells");
     assert_eq!(metadata["saved_frames"], 200);
     assert!(metadata["box"].is_array());
     let lines = fs::read_to_string(output.join("traj.jsonl")).unwrap();

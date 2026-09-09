@@ -11,6 +11,14 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ForceMethod {
+    Naive,
+    #[default]
+    Cells,
+}
+
 #[derive(Debug, Clone)]
 pub struct MdError(pub String);
 
@@ -167,11 +175,95 @@ pub fn evaluate(
     state: &FluidState,
     potential: ShiftedLennardJones,
 ) -> Result<ForceEvaluation, MdError> {
+    evaluate_with_method(state, potential, ForceMethod::Naive)
+}
+
+pub fn evaluate_with_method(
+    state: &FluidState,
+    potential: ShiftedLennardJones,
+    method: ForceMethod,
+) -> Result<ForceEvaluation, MdError> {
+    match method {
+        ForceMethod::Naive => evaluate_naive(state, potential),
+        ForceMethod::Cells => evaluate_cells(state, potential),
+    }
+}
+
+fn evaluate_naive(
+    state: &FluidState,
+    potential: ShiftedLennardJones,
+) -> Result<ForceEvaluation, MdError> {
     let mut forces = vec![[0.0; 2]; state.positions.len()];
     let mut potential_energy = 0.0;
     let mut minimum_distance = f64::INFINITY;
     for first in 0..state.positions.len() - 1 {
         for second in first + 1..state.positions.len() {
+            let displacement = state
+                .cell
+                .minimum_image(state.positions[first], state.positions[second]);
+            let distance = displacement[0].hypot(displacement[1]);
+            minimum_distance = minimum_distance.min(distance);
+            let pair = potential.pair(distance)?;
+            potential_energy += pair.energy;
+            if pair.radial_force != 0.0 {
+                for component in 0..2 {
+                    let force = pair.radial_force * displacement[component] / distance;
+                    forces[first][component] -= force;
+                    forces[second][component] += force;
+                }
+            }
+        }
+    }
+    Ok(ForceEvaluation {
+        forces,
+        potential_energy,
+        minimum_distance,
+    })
+}
+
+fn evaluate_cells(
+    state: &FluidState,
+    potential: ShiftedLennardJones,
+) -> Result<ForceEvaluation, MdError> {
+    let nx = (state.cell.lengths[0] / potential.cutoff).floor() as usize;
+    let ny = (state.cell.lengths[1] / potential.cutoff).floor() as usize;
+    let nx = nx.max(1);
+    let ny = ny.max(1);
+    let cell_width = [
+        state.cell.lengths[0] / nx as f64,
+        state.cell.lengths[1] / ny as f64,
+    ];
+    let mut buckets = vec![Vec::<usize>::new(); nx * ny];
+    for (index, position) in state.positions.iter().enumerate() {
+        let x = ((position[0] / cell_width[0]).floor() as usize).min(nx - 1);
+        let y = ((position[1] / cell_width[1]).floor() as usize).min(ny - 1);
+        buckets[y * nx + x].push(index);
+    }
+
+    let mut forces = vec![[0.0; 2]; state.positions.len()];
+    let mut potential_energy = 0.0;
+    let mut minimum_distance = f64::INFINITY;
+    for first in 0..state.positions.len() {
+        let x = ((state.positions[first][0] / cell_width[0]).floor() as usize).min(nx - 1);
+        let y = ((state.positions[first][1] / cell_width[1]).floor() as usize).min(ny - 1);
+        let mut neighbor_cells = Vec::with_capacity(9);
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let wrapped_x = (x as isize + dx).rem_euclid(nx as isize) as usize;
+                let wrapped_y = (y as isize + dy).rem_euclid(ny as isize) as usize;
+                let cell = wrapped_y * nx + wrapped_x;
+                if !neighbor_cells.contains(&cell) {
+                    neighbor_cells.push(cell);
+                }
+            }
+        }
+        let mut neighbor_particles = neighbor_cells
+            .into_iter()
+            .flat_map(|cell| buckets[cell].iter().copied())
+            .filter(|&second| second > first)
+            .collect::<Vec<_>>();
+        neighbor_particles.sort_unstable();
+        for second in neighbor_particles {
             let displacement = state
                 .cell
                 .minimum_image(state.positions[first], state.positions[second]);
@@ -207,6 +299,7 @@ pub struct FluidConfig {
     pub seed: u64,
     pub cutoff: f64,
     pub rescale_every: usize,
+    pub force_method: ForceMethod,
 }
 
 impl Default for FluidConfig {
@@ -222,6 +315,7 @@ impl Default for FluidConfig {
             seed: 2_026,
             cutoff: 2.5,
             rescale_every: 50,
+            force_method: ForceMethod::Cells,
         }
     }
 }
@@ -307,7 +401,12 @@ pub fn initialize_fluid(config: &FluidConfig) -> Result<FluidState, MdError> {
     }
     let mut state = FluidState::new(positions, velocities, cell)?;
     rescale_temperature(&mut state, config.temperature)?;
-    state.forces = evaluate(&state, ShiftedLennardJones::new(config.cutoff)?)?.forces;
+    state.forces = evaluate_with_method(
+        &state,
+        ShiftedLennardJones::new(config.cutoff)?,
+        config.force_method,
+    )?
+    .forces;
     Ok(state)
 }
 
@@ -333,13 +432,20 @@ fn validate_config(config: &FluidConfig) -> Result<(), MdError> {
 #[derive(Clone, Copy, Debug)]
 pub struct FluidVelocityVerlet {
     potential: ShiftedLennardJones,
+    force_method: ForceMethod,
 }
 
 impl FluidVelocityVerlet {
     pub fn new(cutoff: f64) -> Result<Self, MdError> {
         Ok(Self {
             potential: ShiftedLennardJones::new(cutoff)?,
+            force_method: ForceMethod::Cells,
         })
+    }
+
+    pub fn with_force_method(mut self, force_method: ForceMethod) -> Self {
+        self.force_method = force_method;
+        self
     }
 }
 
@@ -355,7 +461,7 @@ impl Integrator<FluidState> for FluidVelocityVerlet {
                 position[1] + dt * velocity[1],
             ]);
         }
-        let new_forces = evaluate(state, self.potential)
+        let new_forces = evaluate_with_method(state, self.potential, self.force_method)
             .expect("valid state during integration")
             .forces;
         for (velocity, force) in state.velocities.iter_mut().zip(&new_forces) {
@@ -382,6 +488,7 @@ pub struct RunMetadata {
     pub integrator: String,
     pub potential: String,
     pub cutoff: f64,
+    pub force: ForceMethod,
     pub equilibration_rescale_every: usize,
     pub production_reference_energy: f64,
     pub saved_frames: usize,
@@ -403,6 +510,7 @@ impl RunMetadata {
             integrator: "velocity-verlet".into(),
             potential: "lennard-jones-potential-shifted".into(),
             cutoff: 2.5,
+            force: ForceMethod::Cells,
             equilibration_rescale_every: 50,
             production_reference_energy: 0.0,
             saved_frames: 1,
@@ -430,7 +538,8 @@ pub struct SimulationOutput {
 
 pub fn run_fluid(config: &FluidConfig) -> Result<SimulationOutput, MdError> {
     let mut state = initialize_fluid(config)?;
-    let integrator = FluidVelocityVerlet::new(config.cutoff)?;
+    let integrator =
+        FluidVelocityVerlet::new(config.cutoff)?.with_force_method(config.force_method);
     for step in 1..=config.eq_steps {
         integrator.step(&mut state, config.dt);
         if step % config.rescale_every == 0 {
@@ -438,13 +547,15 @@ pub fn run_fluid(config: &FluidConfig) -> Result<SimulationOutput, MdError> {
         }
     }
     let potential = ShiftedLennardJones::new(config.cutoff)?;
-    let initial_potential = evaluate(&state, potential)?.potential_energy;
+    let initial_potential =
+        evaluate_with_method(&state, potential, config.force_method)?.potential_energy;
     let reference_energy = kinetic_energy(&state) + initial_potential;
     let mut frames = Vec::with_capacity(config.steps / config.sample_every);
     for step in 1..=config.steps {
         integrator.step(&mut state, config.dt);
         if step % config.sample_every == 0 {
-            let e_pot = evaluate(&state, potential)?.potential_energy;
+            let e_pot =
+                evaluate_with_method(&state, potential, config.force_method)?.potential_energy;
             frames.push(TrajectoryFrame {
                 step,
                 t: step as f64 * config.dt,
@@ -469,6 +580,7 @@ pub fn run_fluid(config: &FluidConfig) -> Result<SimulationOutput, MdError> {
         integrator: "velocity-verlet".into(),
         potential: "lennard-jones-potential-shifted".into(),
         cutoff: config.cutoff,
+        force: config.force_method,
         equilibration_rescale_every: config.rescale_every,
         production_reference_energy: reference_energy,
         saved_frames: frames.len(),
