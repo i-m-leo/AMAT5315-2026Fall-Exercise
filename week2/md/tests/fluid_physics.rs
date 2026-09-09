@@ -28,10 +28,18 @@ fn potential_is_shifted_to_zero_at_the_cutoff() {
 }
 
 #[test]
-fn accumulated_pair_forces_are_equal_and_opposite() {
+fn forces_on_all_atoms_sum_to_zero() {
     let cell = PeriodicBox::new([8.0, 8.0]).unwrap();
-    let state = FluidState::new(vec![[1.0, 1.0], [2.2, 1.0]], vec![[0.0; 2]; 2], cell).unwrap();
+    let state = FluidState::new(
+        vec![[0.2, 1.0], [7.7, 1.3], [1.4, 2.1], [4.0, 4.0]],
+        vec![[0.0; 2]; 4],
+        cell,
+    )
+    .unwrap();
     let result = evaluate(&state, ShiftedLennardJones::new(2.5).unwrap()).unwrap();
-    close(result.forces[0][0] + result.forces[1][0], 0.0);
-    close(result.forces[0][1] + result.forces[1][1], 0.0);
+    let total = result.forces.iter().fold([0.0, 0.0], |sum, force| {
+        [sum[0] + force[0], sum[1] + force[1]]
+    });
+    close(total[0], 0.0);
+    close(total[1], 0.0);
 }

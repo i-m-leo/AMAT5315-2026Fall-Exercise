@@ -44,15 +44,15 @@ struct RunArgs {
 
 #[derive(Args)]
 struct CheckArgs {
-    #[arg(long, default_value = "artifacts")]
+    #[arg(default_value = "artifacts")]
     input: PathBuf,
 }
 
 #[derive(Args)]
 struct VideoArgs {
-    #[arg(long, default_value = "artifacts")]
+    #[arg(default_value = "artifacts")]
     input: PathBuf,
-    #[arg(long)]
+    #[arg(long = "out", visible_alias = "output")]
     output: Option<PathBuf>,
     #[arg(long, default_value_t = 20)]
     fps: u32,
@@ -101,30 +101,13 @@ fn execute(cli: Cli) -> Result<ExitCode, MdError> {
         }
         Some(Command::Check(args)) => {
             let report = check_artifacts(&args.input)?;
+            println!("secular drift = {:.6e}  (< 2e-3)", report.secular_drift);
             println!(
-                "Stored energy integrity : {} ({:.3e})",
-                pass(report.energy_integrity),
-                report.maximum_energy_mismatch
+                "T_speed       = {:.6}  (|T_speed - {:.3}| < 0.05)",
+                report.speed_temperature, report.target_temperature
             );
-            println!(
-                "Momentum conservation   : {} ({:.3e})",
-                pass(report.momentum_conservation),
-                report.maximum_momentum_per_particle
-            );
-            println!(
-                "Production energy drift : {} ({:.3e})",
-                pass(report.energy_drift),
-                report.rolling_energy_drift
-            );
-            println!(
-                "max instantaneous error : {:.3e}",
-                report.maximum_relative_energy_error
-            );
-            println!("mean temperature        : {:.6}", report.mean_temperature);
-            println!(
-                "minimum pair distance   : {:.6}",
-                report.minimum_pair_distance
-            );
+            println!("chi2/dof      = {:.6}  (< 2)", report.chi_square_per_dof);
+            println!("{}", pass(report.passed()));
             Ok(if report.passed() {
                 ExitCode::SUCCESS
             } else {

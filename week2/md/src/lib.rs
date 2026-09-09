@@ -12,6 +12,7 @@ pub use simulation::{
 };
 
 /// Returns the Lennard-Jones pair energy at a separation in reduced units.
+#[inline(never)]
 pub fn lennard_jones_pair_energy(distance: f64) -> f64 {
     let inverse_distance_sixth = distance.recip().powi(6);
     4.0 * (inverse_distance_sixth.powi(2) - inverse_distance_sixth)

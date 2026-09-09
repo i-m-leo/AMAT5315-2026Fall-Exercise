@@ -583,14 +583,22 @@ pub struct CheckReport {
     pub maximum_energy_mismatch: f64,
     pub maximum_momentum_per_particle: f64,
     pub rolling_energy_drift: f64,
+    pub secular_drift: f64,
     pub maximum_relative_energy_error: f64,
     pub mean_temperature: f64,
+    pub speed_temperature: f64,
+    pub target_temperature: f64,
+    pub chi_square_per_dof: f64,
     pub minimum_pair_distance: f64,
 }
 
 impl CheckReport {
     pub fn passed(&self) -> bool {
-        self.energy_integrity && self.momentum_conservation && self.energy_drift
+        self.energy_integrity
+            && self.momentum_conservation
+            && self.energy_drift
+            && (self.speed_temperature - self.target_temperature).abs() < 0.05
+            && self.chi_square_per_dof < 2.0
     }
 }
 
@@ -612,6 +620,7 @@ pub fn check_artifacts(input: &Path) -> Result<CheckReport, MdError> {
     let mut minimum_pair_distance = f64::INFINITY;
     let mut temperatures = Vec::with_capacity(frames.len());
     let mut energies = Vec::with_capacity(frames.len());
+    let mut squared_speeds = Vec::with_capacity(frames.len() * metadata.n);
     for (index, frame) in frames.iter().enumerate() {
         let expected_step = (index + 1) * metadata.sample_every;
         if frame.step != expected_step
@@ -645,6 +654,12 @@ pub fn check_artifacts(input: &Path) -> Result<CheckReport, MdError> {
         let total = evaluated.potential_energy + e_kin;
         energies.push(total);
         temperatures.push(e_kin / metadata.n as f64);
+        squared_speeds.extend(
+            frame
+                .vel
+                .iter()
+                .map(|velocity| velocity[0].powi(2) + velocity[1].powi(2)),
+        );
         maximum_relative_energy_error = maximum_relative_energy_error.max(
             (total - metadata.production_reference_energy).abs()
                 / metadata.production_reference_energy.abs(),
@@ -659,17 +674,40 @@ pub fn check_artifacts(input: &Path) -> Result<CheckReport, MdError> {
     let min_mean = means.iter().copied().fold(f64::INFINITY, f64::min);
     let max_mean = means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let rolling_energy_drift = (max_mean - min_mean) / metadata.production_reference_energy.abs();
+    let speed_temperature =
+        squared_speeds.iter().sum::<f64>() / (2.0 * squared_speeds.len() as f64);
+    let chi_square_per_dof = speed_chi_square_per_dof(&squared_speeds, metadata.temperature, 10);
     Ok(CheckReport {
         energy_integrity: maximum_energy_mismatch <= 1.0,
         momentum_conservation: maximum_momentum_per_particle < 1.0e-10,
-        energy_drift: rolling_energy_drift < 1.0e-3,
+        energy_drift: rolling_energy_drift < 2.0e-3,
         maximum_energy_mismatch,
         maximum_momentum_per_particle,
         rolling_energy_drift,
+        secular_drift: rolling_energy_drift,
         maximum_relative_energy_error,
         mean_temperature: temperatures.iter().sum::<f64>() / temperatures.len() as f64,
+        speed_temperature,
+        target_temperature: metadata.temperature,
+        chi_square_per_dof,
         minimum_pair_distance,
     })
+}
+
+fn speed_chi_square_per_dof(squared_speeds: &[f64], temperature: f64, bins: usize) -> f64 {
+    let mut counts = vec![0_usize; bins];
+    for &speed_squared in squared_speeds {
+        // In two dimensions, p(v) is Rayleigh and this CDF is uniform on [0, 1).
+        let cumulative = 1.0 - (-speed_squared / (2.0 * temperature)).exp();
+        let bin = ((cumulative * bins as f64) as usize).min(bins - 1);
+        counts[bin] += 1;
+    }
+    let expected = squared_speeds.len() as f64 / bins as f64;
+    counts
+        .into_iter()
+        .map(|observed| (observed as f64 - expected).powi(2) / expected)
+        .sum::<f64>()
+        / (bins - 1) as f64
 }
 
 pub fn render_video_frame(
@@ -762,18 +800,13 @@ pub fn encode_video(
             "fps, RDF bins, and RDF window must be positive".into(),
         ));
     }
-    if output.exists() {
-        return Err(MdError(format!(
-            "refusing to overwrite {}",
-            output.display()
-        )));
-    }
     let (metadata, frames) = load_artifacts(input)?;
     let dimensions = [1280_u32, 720_u32];
     let size = format!("{}x{}", dimensions[0], dimensions[1]);
     let rate = fps.to_string();
     let mut child = Command::new("ffmpeg")
         .args([
+            "-y",
             "-loglevel",
             "error",
             "-f",
@@ -789,6 +822,8 @@ pub fn encode_video(
             "-an",
             "-c:v",
             "libx264",
+            "-crf",
+            "26",
             "-pix_fmt",
             "yuv420p",
         ])

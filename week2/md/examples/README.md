@@ -26,14 +26,14 @@ It writes `artifacts/run.json` and `artifacts/traj.jsonl`. Check the saved
 trajectory by recomputing its physical quantities with:
 
 ```bash
-/opt/homebrew/bin/cargo run --release --manifest-path md/Cargo.toml -- check --input artifacts
+/opt/homebrew/bin/cargo run --release --manifest-path md/Cargo.toml -- check artifacts
 ```
 
 Render the 200 saved frames and their radial distribution function to video:
 
 ```bash
 /opt/homebrew/bin/cargo run --release --manifest-path md/Cargo.toml -- video \
-  --input artifacts --output artifacts/md.mp4
+  artifacts --out fluid.mp4
 ```
 
 The `artifacts/` directory and Cargo's `md/target/` build directory are ignored

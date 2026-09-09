@@ -22,11 +22,11 @@ fn run_writes_viewer_compatible_artifacts_and_check_passes() {
             "--n",
             "36",
             "--eq-steps",
-            "10",
+            "2000",
             "--steps",
-            "20",
+            "10000",
             "--sample-every",
-            "5",
+            "50",
             "--out",
         ])
         .arg(&output)
@@ -41,21 +41,21 @@ fn run_writes_viewer_compatible_artifacts_and_check_passes() {
     let metadata: Value =
         serde_json::from_slice(&fs::read(output.join("run.json")).unwrap()).unwrap();
     assert_eq!(metadata["format"], "amat5315-md-v1");
-    assert_eq!(metadata["saved_frames"], 4);
+    assert_eq!(metadata["saved_frames"], 200);
     assert!(metadata["box"].is_array());
     let lines = fs::read_to_string(output.join("traj.jsonl")).unwrap();
     let frames = lines
         .lines()
         .map(|line| serde_json::from_str::<Value>(line).unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(frames.len(), 4);
-    assert_eq!(frames[0]["step"], 5);
+    assert_eq!(frames.len(), 200);
+    assert_eq!(frames[0]["step"], 50);
     for key in ["t", "pos", "vel", "E_pot", "E_kin"] {
         assert!(frames[0].get(key).is_some(), "missing {key}");
     }
 
     let check = Command::new(binary)
-        .args(["check", "--input"])
+        .arg("check")
         .arg(&output)
         .output()
         .unwrap();
@@ -64,6 +64,12 @@ fn run_writes_viewer_compatible_artifacts_and_check_passes() {
         "{}",
         String::from_utf8_lossy(&check.stderr)
     );
-    assert!(String::from_utf8_lossy(&check.stdout).contains("Stored energy integrity"));
+    let stdout = String::from_utf8_lossy(&check.stdout);
+    for measurement in ["secular drift", "T_speed", "chi2/dof", "PASS"] {
+        assert!(
+            stdout.contains(measurement),
+            "missing {measurement}: {stdout}"
+        );
+    }
     fs::remove_dir_all(output).unwrap();
 }
