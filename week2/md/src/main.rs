@@ -42,6 +42,8 @@ struct RunArgs {
     out: PathBuf,
     #[arg(long, value_enum, default_value_t = ForceArg::Cells)]
     force: ForceArg,
+    #[arg(long)]
+    ramp_to: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -100,6 +102,7 @@ fn execute(cli: Cli) -> Result<ExitCode, MdError> {
                     ForceArg::Naive => ForceMethod::Naive,
                     ForceArg::Cells => ForceMethod::Cells,
                 },
+                ramp_to: args.ramp_to,
                 ..FluidConfig::default()
             };
             let simulation = run_fluid(&config)?;

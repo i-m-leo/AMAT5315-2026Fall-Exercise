@@ -25,6 +25,10 @@ This is equivalent to:
 The default `--force cells` uses the periodic nine-cell neighbor list. Use
 `--force naive` to run the original all-pairs reference implementation.
 
+For a production temperature ramp, add `--ramp-to`, for example
+`--temperature 0.5 --ramp-to 1.0`. The interpolated target is applied at each
+production step and recorded in `run.json`.
+
 It writes `artifacts/run.json` and `artifacts/traj.jsonl`. Check the saved
 trajectory by recomputing its physical quantities with:
 

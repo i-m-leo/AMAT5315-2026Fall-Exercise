@@ -34,3 +34,20 @@ fn sampling_excludes_step_zero_and_uses_production_steps() {
     assert_eq!(output.frames[0].t, 0.05);
     assert_eq!(output.metadata.saved_frames, 4);
 }
+
+#[test]
+fn production_temperature_can_ramp_linearly_to_the_final_target() {
+    let config = FluidConfig {
+        n: 36,
+        eq_steps: 0,
+        steps: 10,
+        sample_every: 1,
+        temperature: 0.5,
+        ramp_to: Some(1.0),
+        ..FluidConfig::default()
+    };
+    let output = run_fluid(&config).unwrap();
+    assert_eq!(output.metadata.ramp_to, Some(1.0));
+    assert!((output.frames.first().unwrap().e_kin / 36.0 - 0.55).abs() < 1.0e-10);
+    assert!((output.frames.last().unwrap().e_kin / 36.0 - 1.0).abs() < 1.0e-10);
+}

@@ -300,6 +300,7 @@ pub struct FluidConfig {
     pub cutoff: f64,
     pub rescale_every: usize,
     pub force_method: ForceMethod,
+    pub ramp_to: Option<f64>,
 }
 
 impl Default for FluidConfig {
@@ -316,6 +317,7 @@ impl Default for FluidConfig {
             cutoff: 2.5,
             rescale_every: 50,
             force_method: ForceMethod::Cells,
+            ramp_to: None,
         }
     }
 }
@@ -420,6 +422,13 @@ fn validate_config(config: &FluidConfig) -> Result<(), MdError> {
     {
         return Err(MdError("invalid run parameters or sampling cadence".into()));
     }
+    if let Some(ramp_to) = config.ramp_to {
+        if !ramp_to.is_finite() || ramp_to <= 0.0 {
+            return Err(MdError(
+                "ramp-to temperature must be positive and finite".into(),
+            ));
+        }
+    }
     let (cell, _) = triangular_lattice(config.n, config.rho)?;
     if config.cutoff > 0.5 * cell.lengths[0].min(cell.lengths[1]) {
         return Err(MdError(
@@ -489,6 +498,7 @@ pub struct RunMetadata {
     pub potential: String,
     pub cutoff: f64,
     pub force: ForceMethod,
+    pub ramp_to: Option<f64>,
     pub equilibration_rescale_every: usize,
     pub production_reference_energy: f64,
     pub saved_frames: usize,
@@ -511,6 +521,7 @@ impl RunMetadata {
             potential: "lennard-jones-potential-shifted".into(),
             cutoff: 2.5,
             force: ForceMethod::Cells,
+            ramp_to: None,
             equilibration_rescale_every: 50,
             production_reference_energy: 0.0,
             saved_frames: 1,
@@ -553,6 +564,11 @@ pub fn run_fluid(config: &FluidConfig) -> Result<SimulationOutput, MdError> {
     let mut frames = Vec::with_capacity(config.steps / config.sample_every);
     for step in 1..=config.steps {
         integrator.step(&mut state, config.dt);
+        if let Some(ramp_to) = config.ramp_to {
+            let fraction = step as f64 / config.steps as f64;
+            let target = config.temperature + fraction * (ramp_to - config.temperature);
+            rescale_temperature(&mut state, target)?;
+        }
         if step % config.sample_every == 0 {
             let e_pot =
                 evaluate_with_method(&state, potential, config.force_method)?.potential_energy;
@@ -581,6 +597,7 @@ pub fn run_fluid(config: &FluidConfig) -> Result<SimulationOutput, MdError> {
         potential: "lennard-jones-potential-shifted".into(),
         cutoff: config.cutoff,
         force: config.force_method,
+        ramp_to: config.ramp_to,
         equilibration_rescale_every: config.rescale_every,
         production_reference_energy: reference_energy,
         saved_frames: frames.len(),
