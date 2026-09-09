@@ -10,8 +10,10 @@ pub fn lennard_jones_pair_energy(distance: f64) -> f64 {
 }
 
 /// Returns the radial Lennard-Jones pair force in reduced units.
-pub fn lennard_jones_pair_force(_distance: f64) -> f64 {
-    unimplemented!("Lennard-Jones pair force")
+pub fn lennard_jones_pair_force(distance: f64) -> f64 {
+    let inverse_distance = distance.recip();
+    let inverse_distance_sixth = inverse_distance.powi(6);
+    24.0 * inverse_distance * (2.0 * inverse_distance_sixth.powi(2) - inverse_distance_sixth)
 }
 
 #[cfg(test)]
