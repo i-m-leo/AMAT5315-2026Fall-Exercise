@@ -1,0 +1,5 @@
+L=32 cold mean |M| = 0.9865
+L=64 cold mean |M| = 0.9865
+L=32 fitted T_peak = 2.3512 (chi_peak = 19.5289)
+L=64 fitted T_peak = 2.3123 (chi_peak = 53.4082)
+T_c = 2*T_peak(64) - T_peak(32) = 2.2734
