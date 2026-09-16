@@ -1,1 +1,1 @@
-/Users/leo/anaconda3/envs/ising-plot/bin/python week3/evidence/draw_boltzmann.py
+MPLCONFIGDIR=/private/tmp/ising-mplconfig /Users/leo/anaconda3/envs/ising-plot/bin/python week3/evidence/draw_boltzmann.py

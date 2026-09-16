@@ -28,7 +28,8 @@ def main():
     n31, _ = np.histogram(e31, bins=bins)
     centers = (bins[:-1] + bins[1:]) / 2
     valid = (n30 >= 5) & (n31 >= 5)
-    log_ratio = np.where(valid, np.log(n31 / n30), np.nan)
+    log_ratio = np.full(n30.shape, np.nan, dtype=float)
+    log_ratio[valid] = np.log(n31[valid] / n30[valid])
     slope = 1 / 3.0 - 1 / 3.1
     fig, (hist, ratio) = plt.subplots(2, 1, figsize=(11, 8), sharex=True, height_ratios=(1.2, 1))
     hist.hist(e30, bins=bins, alpha=0.55, label="T = 3.0")
