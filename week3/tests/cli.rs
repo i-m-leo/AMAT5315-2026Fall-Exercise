@@ -79,7 +79,7 @@ fn metropolis_writes_contract_outputs() {
 }
 
 #[test]
-fn wolff_is_rejected_until_implemented() {
+fn wolff_writes_cluster_flip_outputs() {
     let output = Command::new(binary())
         .args([
             "--update",
@@ -103,6 +103,53 @@ fn wolff_is_rejected_until_implemented() {
         ])
         .output()
         .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("only metropolis is implemented"));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("mean_cluster_size"));
+    let dir = tempfile::tempdir().unwrap();
+    let output = Command::new(binary())
+        .args([
+            "--update",
+            "wolff",
+            "--l",
+            "4",
+            "--t-from",
+            "1.5",
+            "--t-to",
+            "1.5",
+            "--t-step",
+            "0.1",
+            "--discard",
+            "1",
+            "--measure",
+            "2",
+            "--every",
+            "1",
+            "--seed",
+            "1",
+            "--out",
+            dir.path().to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rows: Vec<Value> = fs::read_to_string(dir.path().join("series.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(rows.len(), 2);
+    assert!(rows
+        .iter()
+        .all(|row| row["cluster_size"].as_u64().unwrap() >= 1));
+    let run: Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("run.json")).unwrap()).unwrap();
+    assert_eq!(run["time_unit"], "cluster_flip");
 }

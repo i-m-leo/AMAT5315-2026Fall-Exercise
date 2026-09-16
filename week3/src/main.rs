@@ -41,7 +41,7 @@ struct Run<'a> {
     measure: usize,
     seed: u64,
     sample_every: usize,
-    time_unit: &'static str,
+    time_unit: &'a str,
 }
 
 #[derive(Serialize)]
@@ -55,6 +55,8 @@ struct Series {
     m: f64,
     #[serde(rename = "E")]
     e: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cluster_size: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -108,6 +110,42 @@ impl Ising {
         accepted
     }
 
+    fn cluster_flip(&mut self, temperature: f64, rng: &mut StdRng) -> usize {
+        let start = rng.gen_range(0..self.spins.len());
+        let spin = self.spins[start];
+        let probability = 1.0 - (-2.0 / temperature).exp();
+        let mut in_cluster = vec![false; self.spins.len()];
+        let mut stack = vec![start];
+        in_cluster[start] = true;
+        while let Some(index) = stack.pop() {
+            let row = index / self.l;
+            let col = index % self.l;
+            let neighbours = [
+                self.index(row + 1, col),
+                self.index(row + self.l - 1, col),
+                self.index(row, col + 1),
+                self.index(row, col + self.l - 1),
+            ];
+            for neighbour in neighbours {
+                if !in_cluster[neighbour]
+                    && self.spins[neighbour] == spin
+                    && rng.gen::<f64>() < probability
+                {
+                    in_cluster[neighbour] = true;
+                    stack.push(neighbour);
+                }
+            }
+        }
+        let mut cluster_size = 0;
+        for (index, included) in in_cluster.into_iter().enumerate() {
+            if included {
+                self.spins[index] = -self.spins[index];
+                cluster_size += 1;
+            }
+        }
+        cluster_size
+    }
+
     fn magnetization(&self) -> f64 {
         self.spins.iter().map(|&spin| f64::from(spin)).sum::<f64>() / self.spins.len() as f64
     }
@@ -142,8 +180,8 @@ fn temperature_grid(from: f64, to: f64, step: f64) -> Vec<f64> {
 }
 
 fn run(args: Args) -> Result<(), String> {
-    if args.update != "metropolis" {
-        return Err("only metropolis is implemented".into());
+    if args.update != "metropolis" && args.update != "wolff" {
+        return Err("update must be metropolis or wolff".into());
     }
     if args.l < 2 || args.t_step <= 0.0 || args.t_from <= 0.0 || args.t_to < args.t_from {
         return Err("invalid lattice or temperature range".into());
@@ -165,7 +203,11 @@ fn run(args: Args) -> Result<(), String> {
             measure: args.measure,
             seed: args.seed,
             sample_every: args.every,
-            time_unit: "sweep",
+            time_unit: if args.update == "metropolis" {
+                "sweep"
+            } else {
+                "cluster_flip"
+            },
         },
     )
     .map_err(|e| format!("write run.json: {e}"))?;
@@ -181,19 +223,35 @@ fn run(args: Args) -> Result<(), String> {
     } else {
         None
     };
-    println!("T\tmean_abs_M\tacceptance_rate");
+    if args.update == "metropolis" {
+        println!("T\tmean_abs_M\tacceptance_rate");
+    } else {
+        println!("T\tmean_abs_M\tmean_cluster_size");
+    }
     let mut model = Ising::new(args.l);
     let mut rng = StdRng::seed_from_u64(args.seed);
     let mut cumulative_sweep = 0;
     for &temperature in &t_grid {
         let mut accepted = 0usize;
+        let mut cluster_sum = 0usize;
         for _ in 0..args.discard {
-            accepted += model.sweep(temperature, &mut rng);
+            if args.update == "metropolis" {
+                accepted += model.sweep(temperature, &mut rng);
+            } else {
+                cluster_sum += model.cluster_flip(temperature, &mut rng);
+            }
             cumulative_sweep += 1;
         }
         let mut abs_m_sum = 0.0;
         for sweep in 1..=args.measure {
-            accepted += model.sweep(temperature, &mut rng);
+            let cluster_size = if args.update == "metropolis" {
+                accepted += model.sweep(temperature, &mut rng);
+                None
+            } else {
+                let size = model.cluster_flip(temperature, &mut rng);
+                cluster_sum += size;
+                Some(size)
+            };
             cumulative_sweep += 1;
             let m = round6(model.magnetization());
             let e = round6(model.energy());
@@ -206,6 +264,7 @@ fn run(args: Args) -> Result<(), String> {
                     sweep,
                     m,
                     e,
+                    cluster_size,
                 },
             )
             .map_err(|e| format!("write series: {e}"))?;
@@ -230,20 +289,28 @@ fn run(args: Args) -> Result<(), String> {
                 }
             }
         }
-        let proposals = (args.discard + args.measure) * args.l * args.l;
-        let acceptance = if proposals == 0 {
+        let mean_abs_m = if args.measure == 0 {
             0.0
         } else {
-            accepted as f64 / proposals as f64
+            abs_m_sum / args.measure as f64
         };
-        println!(
-            "{temperature:.6}\t{:.6}\t{acceptance:.6}",
-            if args.measure == 0 {
+        if args.update == "metropolis" {
+            let proposals = (args.discard + args.measure) * args.l * args.l;
+            let acceptance = if proposals == 0 {
                 0.0
             } else {
-                abs_m_sum / args.measure as f64
-            }
-        );
+                accepted as f64 / proposals as f64
+            };
+            println!("{temperature:.6}\t{mean_abs_m:.6}\t{acceptance:.6}");
+        } else {
+            let steps = args.discard + args.measure;
+            let mean_cluster = if steps == 0 {
+                0.0
+            } else {
+                cluster_sum as f64 / steps as f64
+            };
+            println!("{temperature:.6}\t{mean_abs_m:.6}\t{mean_cluster:.6}");
+        }
     }
     series.flush().map_err(|e| format!("flush series: {e}"))?;
     if let Some(mut file) = spins_file {
