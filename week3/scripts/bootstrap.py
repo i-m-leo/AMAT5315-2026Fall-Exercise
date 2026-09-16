@@ -12,6 +12,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = ROOT / "week3/artifacts"
 OUTPUT = ROOT / "week3/evidence/chi-bootstrap.png"
+REPORT = ROOT / "week3/evidence/chi-bootstrap.txt"
 BLOCK_LENGTHS = (2000, 4000, 8000)
 REPLICATES = 500
 SEED = 2026
@@ -66,9 +67,12 @@ def main():
     rng = np.random.default_rng(SEED)
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
     colors = {32: "tab:blue", 64: "tab:orange"}
+    report = ["block_length\tTc_mean\tTc_bootstrap_se\tTpeak32_mean\tTpeak64_mean"]
     for axis, block_length in zip(axes, BLOCK_LENGTHS):
+        peak_samples = {}
         for size in (32, 64):
             temperatures, fits = bootstrap_fit(data[size], size, block_length, rng)
+            peak_samples[size] = np.array([-c[1] / (2 * c[0]) for c, _ in fits])
             original = []
             for temperature in temperatures:
                 values = data[size][temperature]
@@ -80,6 +84,8 @@ def main():
             curves = np.asarray([np.polyval(coefficients, fit_grid) for coefficients, _ in fits])
             axis.fill_between(fit_grid, curves.min(axis=0), curves.max(axis=0), color=colors[size], alpha=0.18)
             axis.plot(fit_grid, curves.mean(axis=0), color=colors[size], label=f"L = {size}")
+        tc_samples = 2.0 * peak_samples[64] - peak_samples[32]
+        report.append(f"{block_length}\t{tc_samples.mean():.6f}\t{tc_samples.std(ddof=1):.6f}\t{peak_samples[32].mean():.6f}\t{peak_samples[64].mean():.6f}")
         axis.axvline(TC, color="black", linestyle="--", linewidth=1, label="Onsager Tc" if block_length == BLOCK_LENGTHS[0] else None)
         axis.set_title(f"block length = {block_length}")
         axis.set_xlabel("temperature T")
@@ -90,6 +96,8 @@ def main():
     fig.tight_layout()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUTPUT, dpi=180)
+    REPORT.write_text("\n".join(report) + "\n")
+    print(REPORT.read_text(), end="")
 
 
 if __name__ == "__main__":
