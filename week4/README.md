@@ -287,23 +287,34 @@ scale.
 
 `scripts/run_order.sh` runs Taylor-Green on an `8 x 8` grid with `nu = 0.5` to
 `t = 2` using RK4 at `dt = 0.4, 0.25, 0.2`, each under
-`artifacts/order/rk4-dt<dt>/`, and records the exact field
-`artifacts/order/exact-t2.json`. `scripts/draw_order.py` computes the relative
-L2 error of each final velocity field, plots the errors against `dt` on log-log
-axes with a fitted slope, and writes `evidence/order.png`.
+`artifacts/order/rk4-dt<dt>/`. `scripts/draw_order.py` measures the relative L2
+error of each final velocity field against the analytic Taylor-Green solution at
+`t = 2` using the six-decimal frames `fluid` writes by contract, fits a line in
+log-log space, and draws dotted lines of slope 1, 2, and 4 plus the dashed
+six-decimal storage floor. `scripts/diagnose_order.py` repeats the measurement
+from both the six-decimal and full-precision frames.
 
 ```sh
 sh scripts/run_order.sh
 MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_order.py
+python3 scripts/diagnose_order.py
 ```
 
 Writes: `artifacts/order/` (not tracked) and `evidence/order.png`.
 
-The three relative errors are `5.98e-04`, `8.23e-05`, and `3.37e-05`; the fitted
-log-log slope is `4.16`, consistent with the fourth-order accuracy of RK4. The
-three steps divide `t = 2` exactly (5, 8, and 10 steps), so no run is shortened
-to land on the final time. These runs use `fluid --full-precision` so the error
-is not limited by the 6-decimal recording.
+```text
+      dt  steps   relative field error at t = 2
+     0.4      5     5.986617e-04
+    0.25      8     7.879896e-05
+     0.2     10     3.574224e-05
+```
+
+The fitted log-log slope is `4.10`, within 15% of 4, and the error falls `16.75`
+times from `dt = 0.4` to `0.2`, close to `2^4 = 16`. The six-decimal storage
+floor is `1.48e-05`; the smallest error `3.57e-05` sits about 2.4 times above
+it, which is why the series stops at `dt = 0.2`. Using the full-precision frames
+instead gives a slope of `4.24`, so the storage floor slightly flattens the
+six-decimal series but leaves the fourth-order signal clear.
 
 ## Random-flow time-step convergence
 
