@@ -22,6 +22,8 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/accuracy_run.rs` - laps a Gaussian pulse three ways and reports the
   maximum error of each.
 - `scripts/convergence.rs` - dt convergence sweep for those runs.
+- `scripts/method_convergence.rs` - dt convergence of Euler, midpoint, RK4, and
+  an equal-weight RK4.
 
 ## Nyquist mode
 
@@ -92,3 +94,23 @@ order. Forward Euler at `dt = 0.005` is only first order and loses the pulse
 amplitude (`2.10e-1`). RK4 with centred differences is worse still (`3.11e-1`):
 its error does not shrink with `dt` because it is dominated by the second-order
 spatial phase error of the centred stencil, not by the time integration.
+
+## Method convergence
+
+The third panel of `line-accuracy.png` compares the four one-step methods on a
+different pulse (`sigma = 0.35`, `t = 1`, `nu = 0.05`), with Fourier
+derivatives, at `dt = 0.02, 0.01, 0.005, 0.0025`. Each method's points are
+fitted by a straight line in log-log space and the slope is labelled in the
+legend.
+
+```sh
+cargo run --quiet --release --bin method-convergence -- evidence
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_accuracy.py
+```
+
+Writes: `evidence/method-convergence.txt` and `evidence/line-accuracy.png`.
+
+The measured slopes are forward Euler `1.03`, explicit midpoint `2.01`,
+classical RK4 `4.00`, and equal-weight RK4 `2.00`. Giving the four RK4 stages
+equal weights `b = 1/4` breaks the fourth-order cancellation and drops the
+scheme to second order, as the slope shows.

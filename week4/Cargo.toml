@@ -25,3 +25,7 @@ path = "scripts/accuracy_run.rs"
 [[bin]]
 name = "convergence"
 path = "scripts/convergence.rs"
+
+[[bin]]
+name = "method-convergence"
+path = "scripts/method_convergence.rs"
