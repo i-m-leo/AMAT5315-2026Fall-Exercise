@@ -172,3 +172,26 @@ The measured slopes are forward Euler `1.03`, explicit midpoint `2.01`,
 classical RK4 `4.00`, and equal-weight RK4 `2.00`. Giving the four RK4 stages
 equal weights `b = 1/4` breaks the fourth-order cancellation and drops the
 scheme to second order, as the slope shows.
+
+## Taylor-Green comparison
+
+`scripts/compare_taylor_green.py` compares the last frame of
+`artifacts/taylor-green/fields.jsonl` with the exact field
+`artifacts/taylor-green/exact-t1.json`, prints the relative velocity error, and
+draws the vorticity at `t = 0` and `t = 1` with velocity arrows on a shared
+colour scale.
+
+Regenerate the artifacts first (they stay out of Git, like `week3/artifacts/`):
+
+```sh
+cargo run --release --bin field -- taylor-green --n 64 \
+  | cargo run --release --bin fluid -- --method rk4 --nu 0.1 --dt 0.01 --t-end 1 --every 0.1 --out artifacts/taylor-green
+cargo run --release --bin field -- taylor-green --n 64 --nu 0.1 --t 1 > artifacts/taylor-green/exact-t1.json
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/compare_taylor_green.py
+```
+
+Writes: `evidence/taylor-green.png`.
+
+The relative velocity error is `2.41e-07`. The largest per-point difference is
+exactly `1.0e-06`, which is the 6-decimal rounding that `fields.jsonl` stores,
+so the true discretisation error of the run is below the recording precision.
