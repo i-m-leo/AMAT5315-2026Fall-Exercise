@@ -13,3 +13,7 @@ path = "scripts/wave_check.rs"
 [[bin]]
 name = "dump-stability"
 path = "scripts/dump_stability.rs"
+
+[[bin]]
+name = "pulse-field"
+path = "scripts/pulse_field.rs"
