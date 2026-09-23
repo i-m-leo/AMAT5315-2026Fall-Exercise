@@ -152,14 +152,19 @@ fn run() -> Result<(), String> {
         let energy = spectral.energy(&u_now, &v_now);
         let enstrophy = spectral.enstrophy(&omega);
 
-        writeln!(out, "{t:.6}\t{energy:.6e}\t{enstrophy:.6e}").map_err(|e| e.to_string())?;
+        let non_finite = !energy.is_finite() || !enstrophy.is_finite();
+        let is_snapshot = step % snapshot_every == 0;
 
-        if !energy.is_finite() || !enstrophy.is_finite() {
+        if non_finite || is_snapshot {
+            writeln!(out, "{t:.6}\t{energy:.6e}\t{enstrophy:.6e}").map_err(|e| e.to_string())?;
+        }
+
+        if non_finite {
             failed = true;
             break;
         }
 
-        if step % snapshot_every == 0 {
+        if is_snapshot {
             write_frame(&mut fields, t, step, &u_now, &v_now, &omega)?;
         }
 

@@ -195,3 +195,32 @@ Writes: `evidence/taylor-green.png`.
 The relative velocity error is `2.41e-07`. The largest per-point difference is
 exactly `1.0e-06`, which is the 6-decimal rounding that `fields.jsonl` stores,
 so the true discretisation error of the run is below the recording precision.
+
+## Stability scan and blow-up
+
+`scripts/run_scan.sh` runs the two cases until they either reach their final
+time or diverge:
+
+- Taylor-Green, `n = 64`, `nu = 0.1`, to `t = 8`: RK4 at `dt = 0.032` and
+  `0.033`.
+- Random, `n = 128`, `nu = 0.004`, to `t = 10`, seed 2026, wavenumbers 2 to 6:
+  RK4 at `dt = 0.040` and `0.038`, Euler at `dt = 0.01`, then RK4 at smaller
+  steps until one reaches `t = 10`.
+
+All runs snapshot every `0.5` time units and write `artifacts/scan/<name>/` plus
+`artifacts/scan/<name>.tsv`. The random initial field is identical in every run.
+
+```sh
+cargo build --release
+sh scripts/run_scan.sh
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_blowup.py
+```
+
+Writes: `artifacts/scan/` (not tracked) and `evidence/blowup.png`.
+
+The largest speed of the random initial field is `2.330426`. Both specified
+random RK4 steps and the Euler run diverge, so the step was reduced until
+`dt = 0.033` reached `t = 10`; `dt = 0.034` is already unstable. For
+Taylor-Green `dt = 0.032` survives and `dt = 0.033` diverges. The blow-up times
+are marked in the figure: Taylor-Green `3.960`, random RK4 `dt = 0.038` at
+`0.646`, and Euler at `0.840`.
