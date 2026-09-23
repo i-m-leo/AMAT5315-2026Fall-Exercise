@@ -26,6 +26,7 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
   an equal-weight RK4.
 - `scripts/perturb.rs` - adds a vorticity ripple to a field on stdin.
 - `scripts/draw_random.py` - vorticity of the random run at four times.
+- `scripts/run_order.sh` and `scripts/draw_order.py` - RK4 time-step order study.
 
 ## Field and fluid tools
 
@@ -279,3 +280,25 @@ The initially fine-grained random vorticity rolls up into coherent structures
 by `t = 2` and `t = 5`, then decays under viscosity; at `t = 10` little of the
 original amplitude survives, which is why that panel is faint on the shared
 scale.
+
+## Time-step order
+
+`scripts/run_order.sh` runs Taylor-Green on an `8 x 8` grid with `nu = 0.5` to
+`t = 2` using RK4 at `dt = 0.4, 0.25, 0.2`, each under
+`artifacts/order/rk4-dt<dt>/`, and records the exact field
+`artifacts/order/exact-t2.json`. `scripts/draw_order.py` computes the relative
+L2 error of each final velocity field, plots the errors against `dt` on log-log
+axes with a fitted slope, and writes `evidence/order.png`.
+
+```sh
+sh scripts/run_order.sh
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_order.py
+```
+
+Writes: `artifacts/order/` (not tracked) and `evidence/order.png`.
+
+The three relative errors are `5.98e-04`, `8.23e-05`, and `3.37e-05`; the fitted
+log-log slope is `4.16`, consistent with the fourth-order accuracy of RK4. The
+three steps divide `t = 2` exactly (5, 8, and 10 steps), so no run is shortened
+to land on the final time. These runs use `fluid --full-precision` so the error
+is not limited by the 6-decimal recording.
