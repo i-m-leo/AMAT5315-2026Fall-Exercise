@@ -1,0 +1,34 @@
+{
+  "case": "random",
+  "n": 128,
+  "seed": 2026,
+  "k_band": [
+    2,
+    6
+  ],
+  "nu": 0.004,
+  "t_end": 2.0,
+  "method": "rk4",
+  "quantity": "omega",
+  "norm": "relative L2, ||omega - omega_ref||_2 / ||omega_ref||_2",
+  "reference_dt": 0.0025,
+  "runs": [
+    {
+      "dt": 0.02,
+      "steps": 100,
+      "relative_error": 2.326639538039555e-05
+    },
+    {
+      "dt": 0.0125,
+      "steps": 160,
+      "relative_error": 3.4932078320683046e-06
+    },
+    {
+      "dt": 0.01,
+      "steps": 200,
+      "relative_error": 1.420515134274271e-06
+    }
+  ],
+  "loglog_slope": 4.03386250104793,
+  "loglog_intercept": 5.111999192199425
+}

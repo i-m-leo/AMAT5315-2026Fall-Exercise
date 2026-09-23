@@ -27,6 +27,8 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/perturb.rs` - adds a vorticity ripple to a field on stdin.
 - `scripts/draw_random.py` - vorticity of the random run at four times.
 - `scripts/run_order.sh` and `scripts/draw_order.py` - RK4 time-step order study.
+- `scripts/run_convergence.sh` and `scripts/convergence_table.py` - random-flow
+  time-step convergence against a fine reference.
 
 ## Field and fluid tools
 
@@ -302,3 +304,31 @@ log-log slope is `4.16`, consistent with the fourth-order accuracy of RK4. The
 three steps divide `t = 2` exactly (5, 8, and 10 steps), so no run is shortened
 to land on the final time. These runs use `fluid --full-precision` so the error
 is not limited by the 6-decimal recording.
+
+## Random-flow time-step convergence
+
+`scripts/run_convergence.sh` runs the random flow (`n = 128`, `nu = 0.004`,
+`seed 2026`, wavenumbers 2 to 6) to `t = 2` with RK4 at `dt = 0.02, 0.0125,
+0.01`, plus a `dt = 0.0025` reference. `scripts/convergence_table.py` compares
+the final vorticity of each run against the reference and writes
+`evidence/convergence.json`.
+
+```sh
+sh scripts/run_convergence.sh
+python3 scripts/convergence_table.py
+```
+
+Writes: `artifacts/convergence/` (not tracked) and `evidence/convergence.json`.
+
+```text
+      dt  steps   relative error of omega
+    0.02    100     2.326640e-05
+  0.0125    160     3.493208e-06
+    0.01    200     1.420515e-06
+```
+
+The fitted log-log slope is `4.03`, matching RK4's fourth order. The `dt = 0.0025`
+reference is itself converged: halving it again to `0.00125` changes the final
+field by only `5.1e-09`, some 280 times smaller than the smallest error above.
+Every run keeps its final field at full precision under
+`artifacts/convergence/rk4-dt<dt>/fields-full.jsonl` for the error estimate.
