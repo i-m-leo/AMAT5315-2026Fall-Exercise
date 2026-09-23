@@ -25,6 +25,7 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/method_convergence.rs` - dt convergence of Euler, midpoint, RK4, and
   an equal-weight RK4.
 - `scripts/perturb.rs` - adds a vorticity ripple to a field on stdin.
+- `scripts/draw_random.py` - vorticity of the random run at four times.
 
 ## Field and fluid tools
 
@@ -260,3 +261,21 @@ error.
 These runs record `fields-full.jsonl` (via `fluid --full-precision`) because the
 Taylor-Green separation falls below the 6-decimal rounding of the default
 `fields.jsonl` from about `t = 2` onwards; the default output is unchanged.
+
+## Random flow snapshots
+
+`scripts/draw_random.py` draws the vorticity of the random run at `t = 0, 2, 5`,
+and `10` in one row on a shared diverging colour scale.
+
+```sh
+cargo run --release --bin field -- random --n 128 --seed 2026 --k-min 2 --k-max 6 \
+  | cargo run --release --bin fluid -- --method rk4 --nu 0.004 --dt 0.01 --t-end 10 --every 0.1 --out artifacts/random
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_random.py
+```
+
+Writes: `evidence/random.png`.
+
+The initially fine-grained random vorticity rolls up into coherent structures
+by `t = 2` and `t = 5`, then decays under viscosity; at `t = 10` little of the
+original amplitude survives, which is why that panel is faint on the shared
+scale.
