@@ -29,6 +29,7 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/run_order.sh` and `scripts/draw_order.py` - RK4 time-step order study.
 - `scripts/run_convergence.sh` and `scripts/convergence_table.py` - random-flow
   time-step convergence against a fine reference.
+- `scripts/draw_convergence.py` - convergence figure with a Richardson step choice.
 
 ## Field and fluid tools
 
@@ -343,3 +344,34 @@ reference is itself converged: halving it again to `0.00125` changes the final
 field by only `5.1e-09`, some 280 times smaller than the smallest error above.
 Every run keeps its final field at full precision under
 `artifacts/convergence/rk4-dt<dt>/fields-full.jsonl` for the error estimate.
+
+`scripts/draw_convergence.py` plots those measured errors against `dt` on
+log-log axes, fits the slope, and chooses a step by fourth-order Richardson
+extrapolation. From the retained fields at `dt = 0.02` and `0.01` the relative
+temporal error at `dt = 0.01` is estimated as
+
+```text
+E(0.01) = ||omega(0.01) - omega(0.02)||_2 / (2^4 - 1) / ||omega(0.01)||_2
+        = 1.457805e-06
+```
+
+Predicting the candidates by fourth-order scaling `E(dt) = E(0.01) (dt/0.01)^4`:
+
+```text
+candidate dt    predicted error     measured error
+        0.02       2.332488e-05       2.326640e-05
+      0.0125       3.559094e-06       3.493208e-06
+        0.01       1.457805e-06       1.420515e-06
+```
+
+```sh
+python3 scripts/draw_convergence.py
+```
+
+Writes: `evidence/convergence.png`.
+
+With a threshold of `5e-6`, the largest step below it is **`dt = 0.0125`**, with
+predicted error `3.56e-06` and measured error `3.49e-06`. It is marked on the
+figure. Note the predictions line up with the measurements to about 2%, which is
+the expected accuracy of the Richardson estimate. The figure's actual threshold
+line (`5e-6`) sits between the `0.0125` and `0.02` points, as drawn.
