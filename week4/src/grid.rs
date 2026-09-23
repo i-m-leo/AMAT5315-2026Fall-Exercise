@@ -81,3 +81,15 @@ pub fn wave_exact(
         .map(|x| amplitude * decay * (k * (x - c * t) + phase).cos())
         .collect()
 }
+
+pub fn gaussian(grid: &PeriodicGrid, sigma: f64, x0: f64) -> Vec<f64> {
+    let length = grid.length();
+    grid.points()
+        .into_iter()
+        .map(|x| {
+            let raw = (x - x0).abs();
+            let d = raw.min(length - raw);
+            (-0.5 * (d / sigma).powi(2)).exp()
+        })
+        .collect()
+}

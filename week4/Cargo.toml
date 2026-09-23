@@ -17,3 +17,11 @@ path = "scripts/dump_stability.rs"
 [[bin]]
 name = "pulse-field"
 path = "scripts/pulse_field.rs"
+
+[[bin]]
+name = "accuracy-run"
+path = "scripts/accuracy_run.rs"
+
+[[bin]]
+name = "convergence"
+path = "scripts/convergence.rs"

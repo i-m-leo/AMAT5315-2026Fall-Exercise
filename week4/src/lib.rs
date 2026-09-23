@@ -7,7 +7,7 @@ pub mod integrators;
 
 pub use centred::CentredDifferenceRhs;
 pub use fourier::FourierRhs;
-pub use grid::{mode, wave_exact, PeriodicGrid};
+pub use grid::{gaussian, mode, wave_exact, PeriodicGrid};
 pub use integrators::{ForwardEuler, Integrator, Midpoint, RungeKutta4, Scheme};
 
 #[cfg(test)]
@@ -98,6 +98,41 @@ mod tests {
         let euler = ForwardEuler.advance(&initial, dt, steps, |s| rhs.rate(s));
         let rk4 = RungeKutta4.advance(&initial, dt, steps, |s| rhs.rate(s));
         assert!(l2_error(&rk4, &exact) < l2_error(&euler, &exact));
+    }
+
+    #[test]
+    fn spectral_exact_matches_single_wave() {
+        let grid = PeriodicGrid::new(64);
+        let (c, nu) = (0.7, 0.05);
+        let rhs = FourierRhs::new(grid, c, nu);
+        let initial = mode(&grid, 3.0, 1.0, 0.4);
+        for t in [0.0, 0.3, 1.7, 2.0 * PI] {
+            let spectral = rhs.exact(&initial, t);
+            let exact = wave_exact(&grid, 3.0, 1.0, 0.4, c, nu, t);
+            assert!(
+                l2_error(&spectral, &exact) < 1e-10,
+                "t = {t}: {}",
+                l2_error(&spectral, &exact)
+            );
+        }
+    }
+
+    #[test]
+    fn gaussian_peak_is_at_its_centre() {
+        let grid = PeriodicGrid::new(64);
+        let values = gaussian(&grid, 0.25, PI / 2.0);
+        let (argmax, peak) = values
+            .iter()
+            .enumerate()
+            .fold((0, f64::NEG_INFINITY), |(bi, bv), (i, &v)| {
+                if v > bv {
+                    (i, v)
+                } else {
+                    (bi, bv)
+                }
+            });
+        assert!((peak - 1.0).abs() < 1e-12);
+        assert!((grid.point(argmax) - PI / 2.0).abs() < grid.spacing());
     }
 
     #[test]

@@ -19,6 +19,9 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
   complex plane `z = lambda h`.
 - `scripts/pulse_field.rs` - records `u(x, t)` for a periodic Gaussian pulse
   under RK4.
+- `scripts/accuracy_run.rs` - laps a Gaussian pulse three ways and reports the
+  maximum error of each.
+- `scripts/convergence.rs` - dt convergence sweep for those runs.
 
 ## Nyquist mode
 
@@ -63,3 +66,29 @@ Writes: `evidence/stability-grid.txt.gz`, `evidence/pulse-dt0.045.txt`,
 At `dt = 0.045` the whole pulse spectrum is stable and the pulse advects and
 diffuses smoothly. At `dt = 0.056` the Nyquist mode leaves the RK4 stability
 region, so the pulse goes unstable and the field fills with grid-scale noise.
+
+## Accuracy after one lap
+
+`scripts/accuracy_run.rs` takes a periodic Gaussian pulse (`sigma = 0.25`,
+centred at `x = pi/2`) once around the box, to `t = 2 pi`, on `n = 64`,
+`c = 1`, `nu = 0.002`, in three ways: RK4 with Fourier derivatives at
+`dt = 0.02`, RK4 with centred differences at `dt = 0.02`, and forward Euler with
+Fourier derivatives at `dt = 0.005`. Errors are measured against the exact
+periodic solution, reached by evolving the initial FFT modes with their symbol
+(`FourierRhs::exact`). `scripts/draw_accuracy.py` plots the final profiles and
+their pointwise error. `scripts/convergence.rs` is the supporting dt sweep.
+
+```sh
+cargo run --quiet --release --bin accuracy-run -- evidence
+cargo run --quiet --release --bin convergence | tee evidence/line-accuracy-convergence.txt
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_accuracy.py
+```
+
+Writes: `evidence/line-accuracy.txt`, `evidence/line-accuracy-profiles.txt`,
+`evidence/line-accuracy-convergence.txt`, and `evidence/line-accuracy.png`.
+
+The RK4 spectral run is the accurate one (`1.80e-5`) and converges at fourth
+order. Forward Euler at `dt = 0.005` is only first order and loses the pulse
+amplitude (`2.10e-1`). RK4 with centred differences is worse still (`3.11e-1`):
+its error does not shrink with `dt` because it is dominated by the second-order
+spatial phase error of the centred stencil, not by the time integration.

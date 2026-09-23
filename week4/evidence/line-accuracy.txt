@@ -1,0 +1,5 @@
+periodic Gaussian pulse: n=64, c=1, nu=0.002, sigma=0.25, x0=1.570796, t=2pi
+run                       steps        t_final max |u - exact|
+RK4 Fourier  dt=0.02        314     6.28000000    1.803703e-5
+RK4 centred  dt=0.02        314     6.28000000    3.108419e-1
+Euler Fourier dt=0.005     1257     6.28500000    2.099578e-1

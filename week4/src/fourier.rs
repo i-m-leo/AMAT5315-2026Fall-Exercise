@@ -64,4 +64,21 @@ impl FourierRhs {
     pub fn diffusivity(&self) -> f64 {
         self.nu
     }
+
+    /// Exact solution of the periodic linear problem at time `t`, obtained by
+    /// evolving each Fourier mode with its symbol: `exp(symbol * t)`.
+    pub fn exact(&self, state: &[f64], t: f64) -> Vec<f64> {
+        let n = self.grid.n();
+        let mut buffer: Vec<Complex<f64>> = state
+            .iter()
+            .map(|&value| Complex::new(value, 0.0))
+            .collect();
+        self.forward.process(&mut buffer);
+        for (value, symbol) in buffer.iter_mut().zip(&self.symbol) {
+            *value *= (symbol * t).exp();
+        }
+        self.inverse.process(&mut buffer);
+        let scale = 1.0 / n as f64;
+        buffer.iter().map(|value| value.re * scale).collect()
+    }
 }
