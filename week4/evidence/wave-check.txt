@@ -1,0 +1,5 @@
+single wave: k=1, c=0.5, nu=0.01, t_end=1, steps=400
+integrator             spectral      centred
+forward-euler          2.189e-4     5.970e-4
+explicit-midpoint      9.121e-8     5.620e-4
+classical-rk4         7.187e-15     5.620e-4

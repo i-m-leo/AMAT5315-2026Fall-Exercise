@@ -1,0 +1,11 @@
+[package]
+name = "advection"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rustfft = "6"
+
+[[bin]]
+name = "wave-check"
+path = "scripts/wave_check.rs"
