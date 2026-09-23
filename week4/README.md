@@ -25,6 +25,49 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/method_convergence.rs` - dt convergence of Euler, midpoint, RK4, and
   an equal-weight RK4.
 
+## Field and fluid tools
+
+`field` and `fluid` integrate the two-dimensional incompressible vorticity
+equation `d omega/dt = -(u . grad) omega + nu Laplacian(omega)` on a periodic
+`[0, 2pi)^2` grid, in the spirit of the Week 2 `md` crate: a generator writes a
+field, and a solver integrates it with the `Integrator` trait from Part 1.
+Their contracts are `field.design.toml` and `fluid.design.toml`.
+
+`field` writes one JSON object to stdout with `case`, `n`, `seed`, `k_band`, and
+`u`, `v` as `n*n` arrays in row-major order with row = y and column = x.
+
+```sh
+cargo run --release --bin field -- taylor-green --n 64 --nu 0.1 --t 1
+cargo run --release --bin field -- random --n 128 --seed 2026 --k-min 2 --k-max 6
+```
+
+The `taylor-green` case is the exact solution
+`u = cos(x) sin(y) exp(-2 nu t)`, `v = -sin(x) cos(y) exp(-2 nu t)`. The
+`random` case sums equal-amplitude cosine modes, `k-min <= |k| <= k-max`, with
+one uniform phase per mode, then rescales so `E(0) = 0.5`.
+
+`fluid` reads that JSON on stdin, takes the initial vorticity as the spectral
+curl `omega_hat = i kx v_hat - i ky u_hat`, and integrates with `--method`
+(`euler`, `rk2`, or `rk4`). Derivatives are pseudospectral and the two-thirds
+rule keeps only `|kx|, |ky| <= floor(n/3)` in the vorticity and in every
+product.
+
+```sh
+cargo run --release --bin field -- taylor-green --n 64 \
+  | cargo run --release --bin fluid -- --method rk4 --nu 0.1 --dt 0.01 --t-end 1 --every 0.1 --out artifacts/taylor-green
+```
+
+`fluid` prints `t`, energy `E = 0.5 * mean(u^2 + v^2)`, and enstrophy
+`Z = 0.5 * mean(omega^2)` per snapshot; it stops at the first non-finite energy,
+prints that line, and exits 1 without storing that frame. It writes
+`<out>/run.json` and `<out>/fields.jsonl` as the design files describe.
+
+The `src/vorticity.rs` tests check that the velocity is divergence free, that it
+reproduces its own vorticity, that Taylor-Green advection vanishes, that a
+single mode decays at its exact spectral rate, that out-of-band modes are
+projected away, and that the library integrators reproduce the exact
+Taylor-Green energy decay `0.25 exp(-4 nu t)`.
+
 ## Nyquist mode
 
 The grid stores wavenumbers as `0, 1, .., n/2 - 1, -n/2, .., -1`, so the

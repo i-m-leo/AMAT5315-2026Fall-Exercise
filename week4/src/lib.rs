@@ -4,11 +4,13 @@ pub mod centred;
 pub mod fourier;
 pub mod grid;
 pub mod integrators;
+pub mod vorticity;
 
 pub use centred::CentredDifferenceRhs;
 pub use fourier::FourierRhs;
 pub use grid::{gaussian, mode, wave_exact, PeriodicGrid};
 pub use integrators::{ForwardEuler, Integrator, Midpoint, RungeKutta4, Scheme};
+pub use vorticity::{Grid2d, Spectral};
 
 #[cfg(test)]
 mod tests {

@@ -104,6 +104,24 @@ impl Scheme {
         [Scheme::ForwardEuler, Scheme::Midpoint, Scheme::RungeKutta4]
     }
 
+    /// Parse the short CLI names `euler`, `rk2`, and `rk4`.
+    pub fn parse_cli(name: &str) -> Option<Scheme> {
+        match name {
+            "euler" => Some(Scheme::ForwardEuler),
+            "rk2" => Some(Scheme::Midpoint),
+            "rk4" => Some(Scheme::RungeKutta4),
+            _ => None,
+        }
+    }
+
+    pub fn cli_name(&self) -> &'static str {
+        match self {
+            Scheme::ForwardEuler => "euler",
+            Scheme::Midpoint => "rk2",
+            Scheme::RungeKutta4 => "rk4",
+        }
+    }
+
     pub fn name(&self) -> &'static str {
         match self {
             Scheme::ForwardEuler => ForwardEuler.name(),
@@ -120,6 +138,17 @@ impl Scheme {
             Scheme::ForwardEuler => ForwardEuler.advance(state, dt, steps, rate),
             Scheme::Midpoint => Midpoint.advance(state, dt, steps, rate),
             Scheme::RungeKutta4 => RungeKutta4.advance(state, dt, steps, rate),
+        }
+    }
+
+    pub fn step<F>(&self, state: &[f64], dt: f64, rate: F) -> Vec<f64>
+    where
+        F: Fn(&[f64]) -> Vec<f64>,
+    {
+        match self {
+            Scheme::ForwardEuler => ForwardEuler.step(state, dt, rate),
+            Scheme::Midpoint => Midpoint.step(state, dt, rate),
+            Scheme::RungeKutta4 => RungeKutta4.step(state, dt, rate),
         }
     }
 }
