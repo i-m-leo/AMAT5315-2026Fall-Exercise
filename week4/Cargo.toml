@@ -9,3 +9,7 @@ rustfft = "6"
 [[bin]]
 name = "wave-check"
 path = "scripts/wave_check.rs"
+
+[[bin]]
+name = "dump-stability"
+path = "scripts/dump_stability.rs"

@@ -33,3 +33,20 @@ cargo run --bin wave-check
 ```
 
 The committed output is `evidence/wave-check.txt`.
+
+## Stability plane
+
+`scripts/dump_stability.rs` advances `y' = lambda y` one step of `h = 1` with
+each library integrator over a grid of complex `z = lambda h`, so the per-step
+growth factor `|y_1|` is measured from the integrators themselves rather than
+from a formula. `scripts/draw_linestability.py` draws that growth on a log
+colour scale, overlays the analytic `|R(z)| = 1` curves of all three schemes,
+and marks the spectral modes of the line at `nu = 0.05`, `n = 64`, `c = 1` for
+`dt = 0.045` and `dt = 0.056`.
+
+```sh
+cargo run --quiet --bin dump-stability -- 3.5 321 | gzip -9 > evidence/stability-grid.txt.gz
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_linestability.py
+```
+
+Writes: `evidence/stability-grid.txt.gz` and `evidence/linestability.png`.
