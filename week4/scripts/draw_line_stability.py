@@ -43,6 +43,7 @@ N = 64
 C = 1.0
 NU = 0.05
 DTS = [0.045, 0.056]
+MODE_COLORS = ["#2ca02c", "#d62728"]
 
 
 def stability_polynomial(name, z):
@@ -97,10 +98,10 @@ def draw_stability(axes, fig):
     for ax, name in zip(axes, SCHEMES):
         re, im, g = to_square(data[name])
         mesh = ax.pcolormesh(
-            re, im, g.T, shading="auto", cmap="viridis",
-            norm=LogNorm(vmin=1e-6, vmax=1e2), rasterized=True,
+            re, im, np.clip(g.T, 1e-3, None), shading="auto", cmap="RdBu_r",
+            norm=LogNorm(vmin=0.3, vmax=3.0), rasterized=True,
         )
-        fig.colorbar(mesh, ax=ax, label="growth factor per step  |y1|")
+        fig.colorbar(mesh, ax=ax, label="growth factor per step")
 
         xr = np.linspace(-3.5, 3.5, 700)
         xg, yg = np.meshgrid(xr, xr)
@@ -115,21 +116,19 @@ def draw_stability(axes, fig):
                 alpha=1.0 if other == name else 0.7,
             )
 
-        for dt, marker in zip(DTS, ("o", "^")):
+        for dt, color in zip(DTS, MODE_COLORS):
             z = lambda_spectral * dt
-            ax.scatter(z.real, z.imag, s=8, marker=marker, color="black",
-                       linewidths=0.0, zorder=4)
-            ax.scatter(z.real, z.imag, s=30, marker=marker, facecolors="none",
-                       edgecolors="white", linewidths=1.0, zorder=5)
+            ax.scatter(z.real, z.imag, s=22, marker="o", color=color,
+                       edgecolors="black", linewidths=0.4, zorder=4)
 
         ax.set_title(LABELS[name])
-        ax.set_xlabel("Re z")
-        ax.set_ylabel("Im z")
+        ax.set_xlabel("Re $\\lambda h$")
+        ax.set_ylabel("Im $\\lambda h$")
         ax.set_xlim(-3.5, 3.5)
         ax.set_ylim(-3.5, 3.5)
         ax.set_aspect("equal")
-        ax.axhline(0.0, color="0.8", linewidth=0.6, zorder=0)
-        ax.axvline(0.0, color="0.8", linewidth=0.6, zorder=0)
+        ax.axhline(0.0, color="0.2", linewidth=0.6, zorder=1)
+        ax.axvline(0.0, color="0.2", linewidth=0.6, zorder=1)
 
         handles = [
             plt.Line2D([], [], color=COLORS[s], linestyle="-",
@@ -138,15 +137,15 @@ def draw_stability(axes, fig):
         ]
         handles += [
             plt.Line2D([], [], marker="o", linestyle="none",
-                       markerfacecolor="none", markeredgecolor="white",
-                       label="dt = 0.045"),
-            plt.Line2D([], [], marker="^", linestyle="none",
-                       markerfacecolor="none", markeredgecolor="white",
-                       label="dt = 0.056"),
+                       markerfacecolor=MODE_COLORS[0], markeredgecolor="black",
+                       label="h = 0.0450"),
+            plt.Line2D([], [], marker="o", linestyle="none",
+                       markerfacecolor=MODE_COLORS[1], markeredgecolor="black",
+                       label="h = 0.0560"),
         ]
         if name == "classical-rk4":
             ax.legend(handles=handles, loc="lower right", fontsize=8,
-                      framealpha=0.9)
+                      framealpha=0.9, title="modes $\\lambda_k h$")
 
 
 def draw_pulse(axes, fig):
