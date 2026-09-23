@@ -68,6 +68,21 @@ single mode decays at its exact spectral rate, that out-of-band modes are
 projected away, and that the library integrators reproduce the exact
 Taylor-Green energy decay `0.25 exp(-4 nu t)`.
 
+## Differentiation accuracy
+
+`scripts/differentiate.rs` applies the solver's spectral derivative operators
+(`Derivative::X`, `XX`, `XY`, `Laplacian`) and the periodic second-order centred
+stencil to `g(x, y) = sin(3x) cos(2y)`, and compares both against the analytic
+derivatives.
+
+```sh
+cargo run --release --quiet --bin differentiate | tee evidence/differentiation.txt
+```
+
+The spectral errors are at machine precision (`~1e-14`). The centred stencil
+errors fall by about a factor 4 when `dx` halves, confirming second order; the
+`ratio 32/64` column is that reduction factor.
+
 ## Nyquist mode
 
 The grid stores wavenumbers as `0, 1, .., n/2 - 1, -n/2, .., -1`, so the

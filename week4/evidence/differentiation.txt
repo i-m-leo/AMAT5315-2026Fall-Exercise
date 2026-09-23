@@ -1,0 +1,7 @@
+g(x, y) = sin(3x) cos(2y) on [0, 2pi)^2; maximum absolute error
+
+op      spectral n=32   centred n=32   centred n=64    ratio 32/64
+dx          7.550e-15       1.705e-1       4.318e-2        3.948e0
+dxx         5.240e-14       2.572e-1       6.487e-2        3.965e0
+dxdy        2.398e-14       4.853e-1       1.243e-1        3.905e0
+lap         6.217e-14       3.084e-1       7.771e-2        3.969e0

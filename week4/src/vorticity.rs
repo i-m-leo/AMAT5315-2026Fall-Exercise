@@ -74,6 +74,50 @@ fn wavenumber(i: usize, n: usize) -> f64 {
     }
 }
 
+/// A spectral derivative operator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Derivative {
+    /// d/dx
+    X,
+    /// d^2/dx^2
+    XX,
+    /// d^2/dx dy
+    XY,
+    /// d^2/dx^2 + d^2/dy^2
+    Laplacian,
+}
+
+/// Second-order centred differences with periodic wrapping, the same stencil
+/// the solver's finite-difference path uses.
+pub fn centred_derivative(field: &[f64], n: usize, op: Derivative) -> Vec<f64> {
+    let dx = 2.0 * PI / n as f64;
+    let at = |ix: isize, iy: isize| -> f64 {
+        let ix = ix.rem_euclid(n as isize) as usize;
+        let iy = iy.rem_euclid(n as isize) as usize;
+        field[iy * n + ix]
+    };
+    let mut out = vec![0.0; n * n];
+    for iy in 0..n {
+        for ix in 0..n {
+            let (i, j) = (ix as isize, iy as isize);
+            out[iy * n + ix] = match op {
+                Derivative::X => (at(i + 1, j) - at(i - 1, j)) / (2.0 * dx),
+                Derivative::XX => (at(i + 1, j) - 2.0 * at(i, j) + at(i - 1, j)) / (dx * dx),
+                Derivative::XY => {
+                    (at(i + 1, j + 1) - at(i + 1, j - 1) - at(i - 1, j + 1) + at(i - 1, j - 1))
+                        / (4.0 * dx * dx)
+                }
+                Derivative::Laplacian => {
+                    (at(i + 1, j) + at(i - 1, j) + at(i, j + 1) + at(i, j - 1)
+                        - 4.0 * at(i, j))
+                        / (dx * dx)
+                }
+            };
+        }
+    }
+    out
+}
+
 pub struct Spectral {
     grid: Grid2d,
     nu: f64,
@@ -210,6 +254,23 @@ impl Spectral {
 
     pub fn physical_omega(&self, omega_hat: &[Complex<f64>]) -> Vec<f64> {
         self.inverse_real(omega_hat)
+    }
+
+    /// Derivative of a grid field by its Fourier symbol.
+    pub fn differentiate(&self, field: &[f64], op: Derivative) -> Vec<f64> {
+        let mut spec = self.forward_real(field);
+        for i in 0..self.grid.len() {
+            let (kx, ky) = (self.kx[i], self.ky[i]);
+            let factor = match op {
+                Derivative::X => Complex::new(0.0, kx),
+                Derivative::XX => Complex::new(-kx * kx, 0.0),
+                Derivative::XY => Complex::new(-kx * ky, 0.0),
+                Derivative::Laplacian => Complex::new(-(kx * kx + ky * ky), 0.0),
+            };
+            spec[i] *= factor;
+        }
+        self.truncate(&mut spec);
+        self.inverse_real(&spec)
     }
 
     /// `E = 0.5 * mean(u^2 + v^2)`.
@@ -403,6 +464,67 @@ mod tests {
             worst = worst.max((derivative[i] - expected).norm());
         }
         assert!(worst < 1e-9, "dissipation mismatch {worst}");
+    }
+
+    #[test]
+    fn centred_derivatives_match_analytic_on_a_smooth_mode() {
+        let n = 32;
+        let grid = Grid2d::new(n);
+        let mut values = vec![0.0; grid.len()];
+        for iy in 0..n {
+            for ix in 0..n {
+                let (x, y) = (grid.x(ix), grid.y(iy));
+                values[grid.flat(iy, ix)] = (3.0 * x).sin() * (2.0 * y).cos();
+            }
+        }
+        let lap = centred_derivative(&values, n, Derivative::Laplacian);
+        let worst = (0..n)
+            .flat_map(|iy| (0..n).map(move |ix| (iy, ix)))
+            .map(|(iy, ix)| {
+                let (x, y) = (grid.x(ix), grid.y(iy));
+                let exact = -13.0 * (3.0 * x).sin() * (2.0 * y).cos();
+                (lap[grid.flat(iy, ix)] - exact).abs()
+            })
+            .fold(0.0, f64::max);
+        assert!(worst < 0.4, "centred Laplacian error {worst}");
+    }
+
+    #[test]
+    fn spectral_derivatives_are_exact_on_resolved_modes() {
+        let n = 32;
+        let grid = Grid2d::new(n);
+        let spec = Spectral::new(grid, 0.0);
+        let mut values = vec![0.0; grid.len()];
+        for iy in 0..n {
+            for ix in 0..n {
+                let (x, y) = (grid.x(ix), grid.y(iy));
+                values[grid.flat(iy, ix)] = (3.0 * x).sin() * (2.0 * y).cos();
+            }
+        }
+        for op in [
+            Derivative::X,
+            Derivative::XX,
+            Derivative::XY,
+            Derivative::Laplacian,
+        ] {
+            let computed = spec.differentiate(&values, op);
+            let worst = (0..n)
+                .flat_map(|iy| (0..n).map(move |ix| (iy, ix)))
+                .map(|(iy, ix)| {
+                    let (x, y) = (grid.x(ix), grid.y(iy));
+                    let (s3x, c3x) = ((3.0 * x).sin(), (3.0 * x).cos());
+                    let (s2y, c2y) = ((2.0 * y).sin(), (2.0 * y).cos());
+                    let exact = match op {
+                        Derivative::X => 3.0 * c3x * c2y,
+                        Derivative::XX => -9.0 * s3x * c2y,
+                        Derivative::XY => -6.0 * c3x * s2y,
+                        Derivative::Laplacian => -13.0 * s3x * c2y,
+                    };
+                    (computed[grid.flat(iy, ix)] - exact).abs()
+                })
+                .fold(0.0, f64::max);
+            assert!(worst < 1e-12, "{op:?} error {worst}");
+        }
     }
 
     #[test]
