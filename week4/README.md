@@ -24,6 +24,7 @@ explicit schemes, plus two rate functions for the advection-diffusion equation
 - `scripts/convergence.rs` - dt convergence sweep for those runs.
 - `scripts/method_convergence.rs` - dt convergence of Euler, midpoint, RK4, and
   an equal-weight RK4.
+- `scripts/perturb.rs` - adds a vorticity ripple to a field on stdin.
 
 ## Field and fluid tools
 
@@ -224,3 +225,38 @@ random RK4 steps and the Euler run diverge, so the step was reduced until
 Taylor-Green `dt = 0.032` survives and `dt = 0.033` diverges. The blow-up times
 are marked in the figure: Taylor-Green `3.960`, random RK4 `dt = 0.038` at
 `0.646`, and Euler at `0.840`.
+
+## Sensitivity to an initial vorticity ripple
+
+`scripts/run_sensitivity.sh` runs each case twice with RK4 at `dt = 0.01` to
+`t = 20`, snapshots every `0.5`. The first run uses the original field; the
+second adds the vorticity ripple
+
+```text
+delta omega(x, y) = -7e-5 * M * cos(3x) cos(4y)
+```
+
+where `M` is the largest `|u|` or `|v|` of that case's initial field
+(`M = 1` for Taylor-Green, `M = 2.213145` for random). All other settings are
+unchanged, so the pair differs only in that ripple. `scripts/perturb.rs` adds
+the ripple through the streamfunction, so the spectral curl of the perturbed
+velocity exceeds the original by exactly `delta omega` (verified to `2e-11`).
+
+```sh
+sh scripts/run_sensitivity.sh
+MPLCONFIGDIR=/tmp/mplconfig-week4 python scripts/draw_sensitivity.py
+```
+
+Writes: `artifacts/sensitivity/` (not tracked) and `evidence/sensitivity.png`.
+
+The figure plots `||omega_perturbed - omega_base||_2 / ||omega_base||_2` against
+time on a log scale. The random pair grows from `2.31e-05` to `1.71e-03` (a
+factor `74`), showing exponential divergence of neighbouring trajectories. The
+Taylor-Green pair instead decays cleanly, from `3.50e-05` to `1.46e-07`, by the
+exact factor `exp(-nu k^2 t)` for `k^2 = 3^2 + 4^2 = 25`: the flow is a single
+decaying mode, so the ripple simply decays with it and there is no growth of
+error.
+
+These runs record `fields-full.jsonl` (via `fluid --full-precision`) because the
+Taylor-Green separation falls below the 6-decimal rounding of the default
+`fields.jsonl` from about `t = 2` onwards; the default output is unchanged.

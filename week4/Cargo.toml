@@ -45,3 +45,7 @@ path = "scripts/fluid.rs"
 [[bin]]
 name = "differentiate"
 path = "scripts/differentiate.rs"
+
+[[bin]]
+name = "perturb"
+path = "scripts/perturb.rs"

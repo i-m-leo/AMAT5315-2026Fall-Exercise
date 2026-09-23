@@ -41,6 +41,9 @@ struct Args {
     /// output folder
     #[arg(long)]
     out: PathBuf,
+    /// also write <out>/fields-full.jsonl with round-trip f64 values
+    #[arg(long = "full-precision")]
+    full_precision: bool,
 }
 
 #[derive(Serialize)]
@@ -139,6 +142,14 @@ fn run() -> Result<(), String> {
         .map_err(|e| format!("open fields.jsonl: {e}"))?;
     let mut fields = BufWriter::new(fields_file);
 
+    let mut full_fields = if args.full_precision {
+        let file = File::create(args.out.join("fields-full.jsonl"))
+            .map_err(|e| format!("open fields-full.jsonl: {e}"))?;
+        Some(BufWriter::new(file))
+    } else {
+        None
+    };
+
     let stdout = io::stdout();
     let mut out = stdout.lock();
     writeln!(out, "t\tE\tZ").map_err(|e| e.to_string())?;
@@ -165,7 +176,10 @@ fn run() -> Result<(), String> {
         }
 
         if is_snapshot {
-            write_frame(&mut fields, t, step, &u_now, &v_now, &omega)?;
+            write_frame(&mut fields, t, step, &u_now, &v_now, &omega, true)?;
+            if let Some(writer) = full_fields.as_mut() {
+                write_frame(writer, t, step, &u_now, &v_now, &omega, false)?;
+            }
         }
 
         if step == steps {
@@ -178,6 +192,9 @@ fn run() -> Result<(), String> {
     }
 
     fields.flush().map_err(|e| e.to_string())?;
+    if let Some(writer) = full_fields.as_mut() {
+        writer.flush().map_err(|e| e.to_string())?;
+    }
     out.flush().map_err(|e| e.to_string())?;
 
     if failed {
@@ -193,15 +210,23 @@ fn write_frame(
     u: &[f64],
     v: &[f64],
     omega: &[f64],
+    rounded: bool,
 ) -> Result<(), String> {
+    let quantize = |values: &[f64]| -> Vec<f64> {
+        if rounded {
+            values.iter().map(|&value| round6(value)).collect()
+        } else {
+            values.to_vec()
+        }
+    };
     let frame = json!({
-        "t": round6(t),
+        "t": if rounded { round6(t) } else { t },
         "step": step,
-        "u": u.iter().map(|&value| round6(value)).collect::<Vec<f64>>(),
-        "v": v.iter().map(|&value| round6(value)).collect::<Vec<f64>>(),
-        "omega": omega.iter().map(|&value| round6(value)).collect::<Vec<f64>>(),
+        "u": quantize(u),
+        "v": quantize(v),
+        "omega": quantize(omega),
     });
-    writeln!(writer, "{frame}").map_err(|e| format!("write fields.jsonl: {e}"))
+    writeln!(writer, "{frame}").map_err(|e| format!("write fields jsonl: {e}"))
 }
 
 fn read_array(parsed: &serde_json::Value, key: &str, expected: usize) -> Result<Vec<f64>, String> {

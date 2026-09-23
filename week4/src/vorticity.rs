@@ -173,6 +173,16 @@ impl Spectral {
         self.nu
     }
 
+    /// The `kx` wavenumber of flat spectral index `i`.
+    pub fn kx_at(&self, i: usize) -> f64 {
+        self.kx[i]
+    }
+
+    /// The `ky` wavenumber of flat spectral index `i`.
+    pub fn ky_at(&self, i: usize) -> f64 {
+        self.ky[i]
+    }
+
     fn transform(&self, buf: &mut [Complex<f64>], inverse: bool) {
         let n = self.grid.n();
         let fft = if inverse { &self.inverse } else { &self.forward };
