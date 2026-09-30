@@ -88,6 +88,7 @@ for n in SIZES:
     ref = analytic_forces(pos)
 
     # --- reverse mode: one pass gives all 3N components ---------------
+    grad_rev(x).block_until_ready()  # JIT-compile before timing
     t0 = time.perf_counter()
     g_rev = grad_rev(x).block_until_ready()
     t_rev = time.perf_counter() - t0
@@ -95,6 +96,8 @@ for n in SIZES:
     # --- forward mode: 3N passes for the full gradient ----------------
     # time TIMED_DIRECTIONS unit directions, then scale by 3N / timed
     dirs = np.eye(3 * n)[:TIMED_DIRECTIONS]
+    _, warm = jax.jvp(energy_flat, (x,), (jnp.asarray(dirs[0]),))
+    warm.block_until_ready()  # JIT-compile before timing
     t_start = time.perf_counter()
     for k in range(TIMED_DIRECTIONS):
         _, g_k = jax.jvp(energy_flat, (x,), (jnp.asarray(dirs[k]),))
