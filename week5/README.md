@@ -43,6 +43,17 @@ python3 scripts/scaling_ad.py
 These write `artifacts/ad/derivatives.json`, `modes.png`, `graph.png`,
 `grad-graph.png`, and `scaling.png`.
 
+## The experiment inputs
+
+The two panels of `artifacts/inputs.png` show what `inputs/reflector.json`
+defines: the background speed, the perturbation, the shots, and the
+receivers in kilometres, and the Ricker pulse at every step's start against
+time in seconds.
+
+```sh
+MPLCONFIGDIR=/tmp/mplconfig-week5 python3 scripts/plot_inputs.py
+```
+
 ## The seismic crate
 
 The solver integrates `u_tt + 2 sigma u_t = c^2 lap(u) + q` with centred
