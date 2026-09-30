@@ -113,7 +113,7 @@ fn traces_are_a_valid_npy_without_recording() {
 }
 
 #[test]
-fn unsupported_modes_and_bad_arguments_fail_loudly() {
+fn bad_arguments_fail_loudly() {
     let dir = temp_dir("errors");
     let path = dir.join("tiny.json");
     std::fs::write(&path, experiment()).unwrap();
@@ -125,16 +125,24 @@ fn unsupported_modes_and_bad_arguments_fail_loudly() {
         out.display().to_string(),
     ];
 
-    for (mode, want) in [("born", "not implemented"), ("adjoint", "not implemented")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_seismic"))
-            .args(&base)
-            .args(["--mode", mode])
-            .output()
-            .unwrap();
-        assert!(!output.status.success(), "{mode} should fail");
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains(want), "{mode}: {stderr}");
-    }
+    // The adjoint needs the receiver weights from a Born run.
+    let output = Command::new(env!("CARGO_BIN_EXE_seismic"))
+        .args(&base)
+        .args(["--mode", "adjoint"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "adjoint without --data should fail");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--data"));
+
+    // A data file of the wrong shape is rejected.
+    let wrong = dir.join("wrong.npy");
+    std::fs::write(&wrong, b"not an npy").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_seismic"))
+        .args(&base)
+        .args(["--mode", "adjoint", "--data", &wrong.display().to_string()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "a bad --data file should fail");
 
     let output = Command::new(env!("CARGO_BIN_EXE_seismic"))
         .args(&base)
@@ -164,7 +172,89 @@ fn reference_experiment_reproduces_course_numbers() {
     }
 }
 
-/// Like `run`, but on an existing experiment file and without recording.
+/// Like `run_inputs`, but with an explicit mode and extra arguments.
+fn run_mode(
+    experiment: &std::path::Path,
+    mode: &str,
+    extra: &[String],
+    name: &str,
+) -> (String, PathBuf) {
+    let out = temp_dir(name).join("out");
+    let mut args = vec![
+        "--experiment".to_string(),
+        experiment.display().to_string(),
+        "--mode".to_string(),
+        mode.to_string(),
+        "--out".to_string(),
+        out.display().to_string(),
+    ];
+    args.extend(extra.iter().cloned());
+    let output = Command::new(env!("CARGO_BIN_EXE_seismic"))
+        .args(&args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "seismic {mode} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (String::from_utf8(output.stdout).unwrap(), out)
+}
+
+/// The Born/adjoint pair on the reference experiment: the Born data norm,
+/// and the adjoint-image dot-product test `<K v, K v> = <v, K^T K v>`.
+#[test]
+fn born_and_adjoint_satisfy_the_dot_product_identity() {
+    let experiment = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("inputs/reflector.json");
+    if !experiment.exists() {
+        eprintln!("skipping: {} is not present (inputs/ is untracked)", experiment.display());
+        return;
+    }
+    let (_, born_out) = run_mode(&experiment, "born", &[], "born");
+    let data = std::fs::read(born_out.join("born_data.npy")).unwrap();
+
+    let (_, adjoint_out) = run_mode(
+        &experiment,
+        "adjoint",
+        &[
+            "--data".to_string(),
+            born_out.join("born_data.npy").display().to_string(),
+        ],
+        "adjoint",
+    );
+
+    // Read the two arrays back through the crate's public readers.
+    let born = seismic::npy::read_f64(&born_out.join("born_data.npy"), &[3, 240, 14]).unwrap();
+    let image = seismic::npy::read_f64(&adjoint_out.join("image.npy"), &[41, 41]).unwrap();
+    assert!(!data.is_empty());
+
+    // The reference Born norm, and the reflector at z = 21.
+    let norm = born.iter().map(|v| v * v).sum::<f64>().sqrt();
+    assert!(
+        (norm - 0.18667589618149358).abs() < 1e-12,
+        "Born norm {norm} vs reference 0.18667589618149358"
+    );
+
+    // dot_left is the data energy; dot_right pairs the image with the
+    // perturbation the data came from. They must agree to round-off.
+    let dot_left: f64 = born.iter().map(|v| v * v).sum();
+    let perturbation =
+        seismic::Experiment::load(&experiment).unwrap().perturbation;
+    let dot_right: f64 = image.iter().zip(&perturbation).map(|(a, b)| a * b).sum();
+    let relative = (dot_left - dot_right).abs() / dot_left.abs();
+    assert!(
+        relative < 1e-12,
+        "dot-product identity: {dot_left} vs {dot_right}, relative {relative}"
+    );
+
+    // The depth profile peaks on the reflector, two cells wide about z = 21.
+    let peak = (0..41)
+        .map(|z| image[z * 41..(z + 1) * 41].iter().map(|v| v.abs()).sum::<f64>())
+        .enumerate()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .unwrap();
+    assert_eq!(peak.0, 21, "image depth profile peaks at z = {}", peak.0);
+}
 fn run_inputs(experiment: &std::path::Path, name: &str) -> (String, PathBuf) {
     let out = temp_dir(name).join("out");
     let output = Command::new(env!("CARGO_BIN_EXE_seismic"))

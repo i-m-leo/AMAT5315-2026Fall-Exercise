@@ -5,12 +5,15 @@ reproduces the reference forward run. Run all commands from `week5/`.
 
 The week has two parts: by-hand and JAX automatic differentiation of a
 Lennard-Jones cluster (the committed `artifacts/ad/`), and the `seismic`
-crate, which simulates acoustic waves in a heterogeneous model. Only the
-forward mode is implemented.
+crate, which simulates acoustic waves in a heterogeneous model and
+differentiates its timestep with Enzyme. All three modes — forward, born,
+and adjoint — are implemented.
 
 ## Requirements
 
-- Rust and Cargo (edition 2021)
+- Rust and Cargo, with the pinned `nightly-2026-09-05` toolchain and its
+  `enzyme` component (`rust-toolchain.toml` selects both; `rustup toolchain
+  install nightly-2026-09-05 --profile minimal --component enzyme`)
 - Python 3.10 or newer with `jax`, `numpy`, and `matplotlib`
 
 The plotting scripts set `MPLCONFIGDIR` to a scratch directory; any writable
@@ -106,8 +109,51 @@ MPLCONFIGDIR=/tmp/mplconfig-week5 python3 scripts/plot_forward.py
 reflection at the layer depth; it writes `artifacts/forward/verify.txt`.
 `plot_forward.py` writes `gathers.png` and `wavefield.png`.
 
-`--mode born` and `--mode adjoint` are accepted by the CLI and exit with a
-"not implemented yet" message.
+**Born.** The Born approximation holds the source, damping, and initial
+state fixed and propagates the experiment's velocity perturbation through
+the background wavefield, chaining Enzyme's timestep JVPs:
+
+```sh
+cargo run --release -- --experiment inputs/reflector.json --mode born --out artifacts/born
+```
+
+This writes `born_data.npy` (float64 `[shot, step, receiver]`); its norm is
+0.18667589618149358.
+
+**Adjoint.** The migrated image stores the full trajectory, then chains the
+timestep VJPs backward from step 239 to 0, back-propagating the receiver
+weights (`--data`, the Born data) and summing the velocity sensitivity over
+time and shots:
+
+```sh
+cargo run --release -- --experiment inputs/reflector.json --mode adjoint \
+  --data artifacts/born/born_data.npy --out artifacts/adjoint
+```
+
+This writes `image.npy` (float64 `[z, x]`). The Born data `v` and the image
+`K^T K v` satisfy `<K v, K v> = <v, K^T K v>`: both sides are
+0.0348478902151638, equal to within 1e-15, and the image's depth profile
+peaks at z = 21, the reflector. `result.json` gains a `statistics` object
+(`storage`, `reverse_calls`, `scheduler_forward_calls`, `peak_saved_states`,
+`per_shot`).
+
+```sh
+python3 scripts/check_born_adjoint.py
+MPLCONFIGDIR=/tmp/mplconfig-week5 python3 scripts/plot_born_adjoint.py
+```
+
+`check_born_adjoint.py` verifies the Born norm, the dot-product identity, the
+reflector depth, and the statistics, and writes
+`artifacts/adjoint/verify.txt`; `plot_born_adjoint.py` writes
+`artifacts/born/born.png` and `artifacts/adjoint/image.png`.
+
+**Enzyme setup.** The differentiated timestep lives in `src/kernel.rs`, a
+`no_std` static library that `build.rs` compiles with `-Zautodiff=Enable` and
+links into the crate; the autodiff pass never sees the CLI, JSON, or
+allocation. `src/enzyme.rs` declares the C ABI wrappers and checks the slice
+lengths before every call. `cargo test` includes the checks that the JVP
+matches a central finite difference and that the VJP is the exact transpose
+of the JVP; no hand-written tangent or adjoint is used anywhere.
 
 The input JSON is the course's `week5-seismic-experiment-v1` schema and is
 not committed (`inputs/` is ignored); `inputs/reflector.json` and the

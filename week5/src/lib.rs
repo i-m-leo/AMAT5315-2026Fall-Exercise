@@ -1,12 +1,15 @@
 //! Seismic modelling: forward acoustic wave simulation and (later) its Born
 //! and adjoint companions, for AMAT5315 week 5.
 
+pub mod enzyme;
 pub mod experiment;
+pub mod modes;
 pub mod npy;
 pub mod output;
 pub mod solver;
 
 pub use experiment::Experiment;
+pub use modes::{adjoint, born, AdjointStats, Storage};
 pub use solver::{ricker, Model, Solver};
 
 #[cfg(test)]

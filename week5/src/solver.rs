@@ -23,12 +23,28 @@ pub struct Model {
     nx: usize,
     c2: Vec<f64>,
     sigma: Vec<f64>,
+    inv_dx2: f64,
 }
 
 impl Model {
     /// Sponge strength at one grid point (0 in the interior).
     pub fn sigma_at(&self, ix: usize, iz: usize) -> f64 {
         self.sigma[iz * self.nx + ix]
+    }
+
+    /// The sponge profile, one value per cell.
+    pub fn sigma(&self) -> &[f64] {
+        &self.sigma
+    }
+
+    /// `1 / dx^2` used by the five-point Laplacian.
+    pub fn inv_dx2(&self) -> f64 {
+        self.inv_dx2
+    }
+
+    /// Squared wave speed per cell.
+    pub fn c2(&self) -> &[f64] {
+        &self.c2
     }
 
     /// Squared wave speed of `background` (plus `perturbation` when asked).
@@ -57,6 +73,7 @@ impl Model {
             nx: exp.nx,
             c2,
             sigma,
+            inv_dx2: 1.0 / (exp.dx * exp.dx),
         }
     }
 }

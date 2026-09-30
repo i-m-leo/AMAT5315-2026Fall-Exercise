@@ -1,0 +1,8 @@
+born shape         ok  born_data (3, 240, 14)/float64
+image shape        ok  image (41, 41)/float64
+born norm          ok  0.18667589618149355 vs reference 0.18667589618149358
+dot product        ok  <Born, Born> = 0.03484789021516376, <image, dv> = 0.034847890215163796, relative 9.956e-16
+dot reference      ok  0.03484789021516376 vs reference 0.03484789021516377
+reflector depth    ok  depth profile peaks at z = 21 (2.1 km), reflector at z = 21
+image peak         ok  peak |image| 2.2553e-02
+statistics         ok  storage full, 720 reverse calls, peak 241 states (6481936 bytes)

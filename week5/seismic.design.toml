@@ -1,6 +1,4 @@
-usage = "seismic --experiment inputs/reflector.json --mode forward --every 3 --
-
-out artifacts/forward"
+usage = "seismic --experiment inputs/reflector.json --mode forward --every 3 --out artifacts/forward"
 
 description = "simulate acoustic waves and their derivatives; no unstated defaults"
 
@@ -78,3 +76,17 @@ every = "forward and adjoint only: frame interval in steps from step 0; default 
 
  one entry per frame in frame order"""
 
+[args.reverse]
+data = "born_data.npy of a born run: the receiver weights to back-propagate"
+[writes.reverse]
+"<out>/result.json" = """adds a statistics object:
+ storage "full": every complete state is kept
+ checkpoints null
+ reverse_calls timestep VJPs
+ scheduler_forward_calls forward steps run to supply saved states,
+ not the step repeated inside each VJP
+ peak_saved_states most complete states held at once, N+1 here
+ peak_saved_bytes their size; one state is 2*nx*nz*8 bytes
+ per_shot per shot, in shot order: reverse_calls,
+ scheduler_forward_calls, peak_saved_states;
+ the flat counters above aggregate these"""
