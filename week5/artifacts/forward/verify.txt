@@ -1,0 +1,8 @@
+shapes       ok  traces (3, 240, 14)/float64, wavefield (80, 41, 41)/float32
+mode         ok  result.json mode forward
+per-shot l2  ok  6.623960807913e+00 6.798645121807e+00 6.623960807913e+00
+trace norm   ok  11.574769503614013 vs 11.574769503614014
+trace peaks  ok  shot 0 trace 83 recv 1 |p| 6.080951434274e-01; shot 1 trace 83 recv 6 |p| 5.927139734671e-01; shot 2 trace 83 recv 12 |p| 6.080951434274e-01
+recording    ok  80 frames, steps 3..240, times 0.6000000000000001..48.0 = step*dt
+echo reflector ok  frame 26 (step 81, t=16.2) peaks at (17, 21), r = 14.76 cells vs c t/2 = 14.58
+wavefield bg ok  peak |wavefield| 6.558e-01
