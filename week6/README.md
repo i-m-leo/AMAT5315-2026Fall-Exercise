@@ -136,6 +136,15 @@ ignored `artifacts/rbm/completion-chains.npz` and
 `artifacts/rbm/completion-settings.json`. The sampler checks that every saved
 state retains the observed upper-half pixels.
 
+`scripts/plot_completion_overlap.py` scores generated lower-half ink against
+the target's true lower half using Dice overlap `2|A∩B|/(|A|+|B|)` at each
+checkpoint. It repeats sampling with the next different-label upper-half donor
+(wrapping within the first 64 test images), while scoring against the original
+target lower half. The plot `evidence/mnist-completion-ink-overlap.png`
+compares both frozen models with correct and mismatched context; error bars are
+standard errors across target digits. Wrong-context chains and the numerical
+scores/settings are retained locally under ignored `artifacts/rbm/`.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.
