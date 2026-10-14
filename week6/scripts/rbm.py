@@ -161,6 +161,8 @@ def main():
     parser.add_argument("--config", type=Path, default=Path("rbm.toml"))
     parser.add_argument("--data", type=Path, default=Path("inputs/mnist"))
     parser.add_argument("--out", type=Path, default=Path("artifacts/rbm"))
+    parser.add_argument("--models", type=int, nargs="+", choices=(1, 10), default=(1, 10),
+                        help="CD-k models to train; use --models 10 to train only missing CD-10")
     args = parser.parse_args()
     with args.config.open("rb") as f:
         cfg = tomllib.load(f)
@@ -174,7 +176,12 @@ def main():
                "hidden_units": 128, "train_examples_used": min(int(cfg["training"]["images"]), len(train_x)),
                "test_examples_used": min(int(cfg["evaluation"]["test_images"]), len(test_x)),
                "models": []}
-    for steps in (1, 10):
+    metrics_path = args.out / "metrics.json"
+    if metrics_path.exists():
+        previous = json.loads(metrics_path.read_text())
+        results["models"] = [m for m in previous.get("models", [])
+                              if int(m["cd_steps"]) not in args.models]
+    for steps in args.models:
         model = train_one(train_x, test_x, cfg, steps)
         model["test_labels"] = test_y[:int(cfg["evaluation"]["test_images"])].tolist()
         # Store learned parameters for downstream visualization/reproducibility.

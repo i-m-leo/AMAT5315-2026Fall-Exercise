@@ -96,6 +96,32 @@ after each epoch as the mean of that epoch's batch values; reconstruction error
 is measured at initialization and after each epoch with fixed evaluation
 randomness.
 
+## Frozen-model Gibbs sampling comparison
+
+After both parameter files exist, run:
+
+```sh
+uv run python scripts/compare_rbm_sampling.py
+```
+
+It freezes CD-1/CD-10 parameters, starts chains
+from eight held-out test digits and eight matched uniform-random binary visible
+configurations (the CLI supports changing the number), and runs eight chains
+per start. Identical starts and PRNG keys are used for both models. The retained
+visible states at 0, 1, 10, 100, and 1000 steps are stored locally in ignored
+`artifacts/rbm/sampling-chains.npz`, with settings in
+`artifacts/rbm/sampling-settings.json`.
+
+The figures `evidence/rbm-heldout-sampling.png` and
+`evidence/rbm-random-sampling.png` show one representative chain at each
+checkpoint for both frozen models; `evidence/rbm-heldout-reconstructions.png`
+compares eight held-out inputs with their 1000-step outputs. They are binary
+visible configurations (white = 1, black = 0). These samples are not clamped to
+the input after initialization. In these illustrative chains CD-1 becomes
+nearly blank by 1000 steps, while CD-10 retains more structure but does not
+reproduce the original digits reliably. This small visualization is qualitative,
+not a quantitative measure of mixing or sample quality.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.
