@@ -133,6 +133,77 @@ def class_frequency(splits: dict[str, tuple[np.ndarray, np.ndarray]], *,
     plt.close(fig)
 
 
+def empirical_distribution_figure(
+    splits: dict[str, tuple[np.ndarray, np.ndarray]], *,
+    class_names: Sequence[str], output: Path, examples_per_class: int = 3,
+    seed: int = 5315, title: str = "Empirical dataset distribution",
+) -> None:
+    """Combine labeled examples per class and relative split frequencies.
+
+    Examples are sampled without replacement from the training split where
+    possible, otherwise the first available split, using a fixed RNG seed.
+    The chart shows proportions within each split, not raw sample counts.
+    """
+    if "train" not in splits or "test" not in splits:
+        raise ValueError("both train and test splits are required")
+    if examples_per_class < 1:
+        raise ValueError("examples_per_class must be positive")
+    reference = splits["train"]
+    images, labels = reference
+    class_ids = np.arange(len(class_names))
+    if not np.isin(labels, class_ids).all():
+        raise ValueError("training labels are outside class_names")
+
+    fig = plt.figure(figsize=(14, 9), layout="constrained")
+    grid = fig.add_gridspec(len(class_ids) + 1, examples_per_class + 1,
+                            height_ratios=[1] * len(class_ids) + [1.5])
+    rng = np.random.default_rng(seed)
+    for row, class_id in enumerate(class_ids):
+        candidates = np.flatnonzero(labels == class_id)
+        if candidates.size == 0:
+            raise ValueError(f"no training examples for class {class_names[class_id]}")
+        selected = rng.choice(candidates, size=min(examples_per_class, candidates.size),
+                              replace=False)
+        for col in range(examples_per_class):
+            ax = fig.add_subplot(grid[row, col])
+            ax.set_axis_off()
+            if col < len(selected):
+                image = images[selected[col]]
+                if image.ndim == 2:
+                    ax.imshow(image, cmap="gray", vmin=0 if image.dtype == np.uint8 else None,
+                              vmax=255 if image.dtype == np.uint8 else None,
+                              interpolation="nearest", origin="upper")
+                else:
+                    ax.imshow(image, interpolation="nearest", origin="upper")
+                ax.set_title(f"{class_names[class_id]} · example {col + 1}", fontsize=8)
+        if examples_per_class < len(class_names) + 1:
+            ax = fig.add_subplot(grid[row, examples_per_class])
+            ax.text(0.98, 0.5, class_names[class_id], ha="right", va="center",
+                    transform=ax.transAxes, fontsize=10, fontweight="bold")
+            ax.set_axis_off()
+
+    ax = fig.add_subplot(grid[-1, :])
+    x = np.arange(len(class_ids))
+    width = 0.8 / len(splits)
+    for j, (split, (_, split_labels)) in enumerate(splits.items()):
+        split_labels = np.asarray(split_labels, dtype=int)
+        if split_labels.size == 0 or not np.isin(split_labels, class_ids).all():
+            raise ValueError(f"invalid or empty labels in {split} split")
+        proportions = np.bincount(split_labels, minlength=len(class_ids)) / split_labels.size
+        offset = (j - (len(splits) - 1) / 2) * width
+        ax.bar(x + offset, proportions, width, label=split)
+    ax.set_xticks(x, class_names, rotation=25, ha="right")
+    ax.set_ylabel("Relative frequency (count / split size)")
+    ax.set_title("Class frequencies by split")
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:.0%}"))
+    ax.legend()
+    ax.grid(axis="y", alpha=0.25)
+    fig.suptitle(title)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=160)
+    plt.close(fig)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dataset", choices=("cifar10", "mnist"))
@@ -140,6 +211,8 @@ def main() -> None:
                         help="CIFAR-10 tar.gz archive or MNIST IDX gzip directory")
     parser.add_argument("--split", choices=("train", "test", "both"), default="both")
     parser.add_argument("--count", type=int, default=25, help="gallery size per split")
+    parser.add_argument("--examples-per-class", type=int, default=3,
+                        help="number of labeled training examples per class in the combined figure")
     parser.add_argument("--no-labels", action="store_true", help="omit gallery captions")
     parser.add_argument("--output-dir", type=Path, default=Path("evidence"))
     args = parser.parse_args()
@@ -150,8 +223,14 @@ def main() -> None:
         image_gallery(images, None if args.no_labels else labels, class_names=names,
                       count=args.count, title=f"{args.dataset.upper()} {split}",
                       output=args.output_dir / f"{args.dataset}-{split}-gallery.png")
-    class_frequency(selected, class_names=names,
-                    output=args.output_dir / f"{args.dataset}-class-frequencies.png")
+    if args.split == "both":
+        empirical_distribution_figure(
+            splits, class_names=names, examples_per_class=args.examples_per_class,
+            title=f"{args.dataset.upper()} empirical distribution",
+            output=args.output_dir / f"{args.dataset}-empirical-distribution.png")
+    else:
+        class_frequency(selected, class_names=names,
+                        output=args.output_dir / f"{args.dataset}-class-frequencies.png")
 
 
 if __name__ == "__main__":

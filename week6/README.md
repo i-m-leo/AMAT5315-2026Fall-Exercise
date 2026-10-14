@@ -15,9 +15,13 @@ uv run pytest
 
 `scripts/visualize.py` reads CIFAR-10 binary archives and MNIST IDX gzip files.
 It produces native-resolution grayscale/RGB image galleries and split-wise
-class-frequency plots. Image arrays retain their original dimensions and
-integer pixel values; galleries use nearest-neighbor rendering without resize
-or normalization. Labels can be hidden with `--no-labels`.
+class-frequency plots. With `--split both`, it also writes one combined
+empirical-distribution figure per dataset: three deterministically sampled,
+labeled training examples for every class above a train/test relative-frequency
+chart. Relative frequency is the class count divided by that split's sample
+count. Image arrays retain their original dimensions and integer pixel values;
+plots use nearest-neighbor rendering without resize or normalization. Labels
+can be hidden from the standalone galleries with `--no-labels`.
 
 From `week6/`, for both CIFAR-10 splits (outputs saved in `evidence/`):
 
@@ -33,7 +37,8 @@ uv run python scripts/visualize.py mnist --input inputs/mnist --split both --cou
 ```
 
 Use `--split train` or `--split test`, `--no-labels`, or `--output-dir PATH`
-to customize output. The default output directory is `evidence/`. The reusable
+to customize output; `--examples-per-class N` sets the number of examples in
+the combined figure. The default output directory is `evidence/`. The reusable
 functions `load_cifar10`, `load_mnist`, `image_gallery`, and `class_frequency`
 are importable from `scripts/visualize.py`.
 
