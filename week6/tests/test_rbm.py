@@ -7,6 +7,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 from rbm import cd_surrogate, energy, gibbs_steps, init_params, visible_free_energy
+from complete_rbm import clamped_gibbs
 
 
 def test_energy_and_visible_free_energy_shapes():
@@ -25,6 +26,16 @@ def test_binary_gibbs_reproducible_and_correct_shape():
     np.testing.assert_array_equal(a, b)
     assert a.shape == v.shape
     assert np.isin(np.asarray(a), [0, 1]).all()
+
+
+def test_clamped_gibbs_preserves_observed_pixels():
+    params = (jnp.zeros((4, 3)), jnp.zeros(4), jnp.zeros(3))
+    current = jnp.zeros((2, 4))
+    observed = jnp.array([[1, 0, 1, 0], [0, 1, 0, 1]], dtype=jnp.float32)
+    mask = jnp.array([[1, 1, 0, 0], [1, 1, 0, 0]], dtype=bool)
+    sample = clamped_gibbs(jax.random.PRNGKey(9), current, observed, mask, params)
+    np.testing.assert_array_equal(np.asarray(sample[:, :2]), np.asarray(observed[:, :2]))
+    assert np.isin(np.asarray(sample), [0, 1]).all()
 
 
 def test_cd_gradient_finite():

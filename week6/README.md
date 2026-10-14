@@ -122,6 +122,20 @@ nearly blank by 1000 steps, while CD-10 retains more structure but does not
 reproduce the original digits reliably. This small visualization is qualitative,
 not a quantitative measure of mixing or sample quality.
 
+## Held-out image completion
+
+Run `uv run python scripts/complete_rbm.py` to complete held-out MNIST digits
+with their lower 14 rows missing. The upper 14 rows are clamped at every
+visible update; each lower half begins from matched Bernoulli(0.5) pixels.
+Both frozen models use the same digits, eight chains per digit, and matched
+Gibbs keys. Checkpoints are retained at initialization and 1, 10, 100, and
+1000 steps. The figures `evidence/mnist-completion-cd1.png` and
+`evidence/mnist-completion-cd10.png` display four digits and four chains per
+digit for each model; the full sampled arrays and run settings are local under
+ignored `artifacts/rbm/completion-chains.npz` and
+`artifacts/rbm/completion-settings.json`. The sampler checks that every saved
+state retains the observed upper-half pixels.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.
