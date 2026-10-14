@@ -1,0 +1,11 @@
+# Local environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Downloads and raw run outputs
+artifacts/*
+!artifacts/.gitkeep
+
+# Evidence is committed, but ignore incidental scratch files
