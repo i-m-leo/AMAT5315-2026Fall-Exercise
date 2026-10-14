@@ -3,7 +3,7 @@ name = "amat5315-week6"
 version = "0.1.0"
 description = "Reusable CIFAR-10 and MNIST visualization scripts"
 requires-python = ">=3.10"
-dependencies = ["matplotlib>=3.8", "numpy>=1.26"]
+dependencies = ["matplotlib>=3.8", "numpy>=1.26", "jax[cpu]>=0.4.30", "tomli>=2; python_version < '3.11'"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]

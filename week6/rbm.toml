@@ -1,0 +1,57 @@
+[training]
+
+images = 60_000 # Use the full training split
+
+epochs = 20 # Passes through the training split
+
+batch_size = 100 # Images per parameter update
+
+shuffle_each_epoch = true
+
+optimizer = "SGD" # Plain gradient descent
+
+learning_rate = 0.1
+
+momentum = 0.0 # No momentum
+
+weight_decay = 0.0 # No weight penalty
+
+precision = "float32"
+
+seed = 6602 # Shared data-shuffle and Gibbs seed
+
+[initialization]
+
+weight_std = 0.01 # Standard deviation of zero-mean normal weights
+
+hidden_bias = 0.0
+
+visible_bias = "logit(clipped training pixel frequency)"
+
+pixel_frequency_clip = [0.01, 0.99] # Keep the visible biases finite
+
+seed = 6601 # Shared parameter-initialization seed
+
+[evaluation]
+
+test_images = 64 # First images in stored test order
+
+# Keep Gibbs randomness fixed across epochs and models.
+
+seed = 6606
+
+reconstruction_at = "initialization and each epoch"
+
+surrogate = "epoch mean of batch surrogates before updates"
+
+[completion]
+
+test_images = 64 # First images in stored test order
+
+chains = 8 # Per image and model
+
+steps = [1, 10, 100, 1000]
+
+seed = 6607
+
+wrong_upper = "next evaluation image with a different label, wrapping within the 64 images"
