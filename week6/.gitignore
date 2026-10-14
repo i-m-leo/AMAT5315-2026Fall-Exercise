@@ -4,8 +4,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# Downloads and raw run outputs
+# Downloaded datasets and raw run outputs
+inputs/*
+!inputs/.gitkeep
 artifacts/*
 !artifacts/.gitkeep
-
-# Evidence is committed, but ignore incidental scratch files
