@@ -145,6 +145,26 @@ compares both frozen models with correct and mismatched context; error bars are
 standard errors across target digits. Wrong-context chains and the numerical
 scores/settings are retained locally under ignored `artifacts/rbm/`.
 
+## AIS held-out NLL
+
+Training saves parameter snapshots at initialization and epochs 10 and 20 as
+ignored `artifacts/rbm/cd{1,10}-epochNN.npz`. Run
+`uv run python scripts/ais_rbm.py` to estimate held-out NLL for the first 64
+test digits at those states. AIS uses the exact independent-Bernoulli base RBM
+(with the model's visible/hidden biases and zero couplings), linearly anneals
+couplings from zero to the trained matrix over 200 transitions, and estimates
+`NLL = mean_test_free_energy + log Z`. Four independent repeats use nested
+particle prefixes of 8, 32, and 128 particles. The result JSON, including each
+repeat and run settings, is saved under ignored `artifacts/rbm/ais-nll.json`.
+
+`evidence/rbm-ais-nll.png` places AIS NLL and repeat-to-repeat standard
+deviation bars alongside the existing CD surrogate and held-out one-step
+reconstruction curves. At epoch 20, the 128-particle mean ± repeat SD was
+137.18 ± 1.10 nats/image for CD-1 and 89.36 ± 0.41 for CD-10; epoch-10 values
+were 107.54 ± 0.58 and 97.00 ± 0.67. Increasing the particle budget generally
+reduced repeat spread, though AIS estimates remain stochastic approximations.
+The test suite checks that AIS is exact when all couplings are zero.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.

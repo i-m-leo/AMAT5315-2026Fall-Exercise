@@ -137,6 +137,7 @@ def train_one(train_data: np.ndarray, test_data: np.ndarray, cfg: dict,
         return new_p, loss
 
     history = [{"epoch": 0, **_metrics(params, test, eval_keys(0))}]
+    checkpoints = {0: jax.tree.map(lambda x: np.asarray(x).copy(), params)}
     batch_size = int(tr["batch_size"])
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
@@ -153,7 +154,10 @@ def train_one(train_data: np.ndarray, test_data: np.ndarray, cfg: dict,
         history.append({"epoch": epoch + 1,
                         "cd_surrogate": float(np.mean(losses)),
                         **_metrics(params, test, eval_keys(epoch + 1))})
-    return {"cd_steps": steps, "history": history, "parameters": params}
+        if epoch + 1 in (10, 20):
+            checkpoints[epoch + 1] = jax.tree.map(lambda x: np.asarray(x).copy(), params)
+    return {"cd_steps": steps, "history": history, "parameters": params,
+            "checkpoints": checkpoints}
 
 
 def main():
@@ -185,9 +189,14 @@ def main():
         model = train_one(train_x, test_x, cfg, steps)
         model["test_labels"] = test_y[:int(cfg["evaluation"]["test_images"])].tolist()
         # Store learned parameters for downstream visualization/reproducibility.
+        final_params = model.pop("parameters")
+        checkpoint_params = model.pop("checkpoints")
+        names = ("weights", "visible_bias", "hidden_bias")
         np.savez_compressed(args.out / f"cd{steps}-parameters.npz",
-                            **{name: np.asarray(value) for name, value in
-                               zip(("weights", "visible_bias", "hidden_bias"), model.pop("parameters"))})
+                            **dict(zip(names, map(np.asarray, final_params))))
+        for epoch, values in checkpoint_params.items():
+            np.savez_compressed(args.out / f"cd{steps}-epoch{epoch:02d}.npz",
+                                **dict(zip(names, values)))
         results["models"].append(model)
     (args.out / "metrics.json").write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps({"output": str(args.out), "models": [

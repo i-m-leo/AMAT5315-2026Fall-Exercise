@@ -8,6 +8,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 from rbm import cd_surrogate, energy, gibbs_steps, init_params, visible_free_energy
 from complete_rbm import clamped_gibbs
+from ais_rbm import ais_log_weights, softplus
 
 
 def test_energy_and_visible_free_energy_shapes():
@@ -36,6 +37,18 @@ def test_clamped_gibbs_preserves_observed_pixels():
     sample = clamped_gibbs(jax.random.PRNGKey(9), current, observed, mask, params)
     np.testing.assert_array_equal(np.asarray(sample[:, :2]), np.asarray(observed[:, :2]))
     assert np.isin(np.asarray(sample), [0, 1]).all()
+
+
+def test_ais_exact_for_uncoupled_rbm():
+    w = jnp.zeros((4, 3))
+    vb = jnp.array([-1.0, 0.0, 0.5, 2.0])
+    hb = jnp.array([-0.5, 0.2, 1.1])
+    logw = ais_log_weights(jax.random.PRNGKey(3), w, vb, hb, 5,
+                           jnp.linspace(0.0, 1.0, 6)[1:])
+    np.testing.assert_allclose(np.asarray(logw), np.zeros(5), atol=1e-6)
+    exact_logz = jnp.sum(softplus(vb)) + jnp.sum(softplus(hb))
+    estimate = exact_logz + jax.scipy.special.logsumexp(logw) - jnp.log(logw.size)
+    np.testing.assert_allclose(float(estimate), float(exact_logz), atol=1e-6)
 
 
 def test_cd_gradient_finite():
