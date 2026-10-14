@@ -89,6 +89,13 @@ matrix `W` and weight distribution, plus visible and hidden bias ranges. The
 784×128 matrix heatmap is the full learned coupling set; lines in the schematic
 only indicate dense connectivity, not individual weight values.
 
+`scripts/plot_rbm_training.py` reads `artifacts/rbm/metrics.json` and writes
+`evidence/rbm-training.png`, comparing the epoch-mean CD surrogate and held-out
+one-step changed-pixel fraction for CD-1 and CD-10. The surrogate is recorded
+after each epoch as the mean of that epoch's batch values; reconstruction error
+is measured at initialization and after each epoch with fixed evaluation
+randomness.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.
