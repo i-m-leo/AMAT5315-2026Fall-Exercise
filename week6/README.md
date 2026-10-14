@@ -77,6 +77,18 @@ The run writes a copy of its settings and `metrics.json` under ignored
 binary reproducible Gibbs transitions, surrogate gradients, and dataset
 loading.
 
+## Spin and RBM structure figures
+
+Run `uv run python scripts/plot_rbm.py` after training. It writes
+`evidence/mnist-spin-configurations.png` and
+`evidence/rbm-visible-hidden-couplings.png`. A binarized pixel `vᵢ ∈ {0,1}`
+is represented as an Ising spin `sᵢ = 2vᵢ - 1 ∈ {-1,+1}`: black pixels are
+−1 and white pixels are +1. The RBM diagram shows the 784 visible and 128
+hidden binary units, their dense bipartite connectivity, learned CD-1 weight
+matrix `W` and weight distribution, plus visible and hidden bias ranges. The
+784×128 matrix heatmap is the full learned coupling set; lines in the schematic
+only indicate dense connectivity, not individual weight values.
+
 ## Repository conventions
 
 - Use `uv` for Python environment and package management; CPU is the default.

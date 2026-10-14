@@ -153,7 +153,7 @@ def train_one(train_data: np.ndarray, test_data: np.ndarray, cfg: dict,
         history.append({"epoch": epoch + 1,
                         "cd_surrogate": float(np.mean(losses)),
                         **_metrics(params, test, eval_keys(epoch + 1))})
-    return {"cd_steps": steps, "history": history}
+    return {"cd_steps": steps, "history": history, "parameters": params}
 
 
 def main():
@@ -177,6 +177,10 @@ def main():
     for steps in (1, 10):
         model = train_one(train_x, test_x, cfg, steps)
         model["test_labels"] = test_y[:int(cfg["evaluation"]["test_images"])].tolist()
+        # Store learned parameters for downstream visualization/reproducibility.
+        np.savez_compressed(args.out / f"cd{steps}-parameters.npz",
+                            **{name: np.asarray(value) for name, value in
+                               zip(("weights", "visible_bias", "hidden_bias"), model.pop("parameters"))})
         results["models"].append(model)
     (args.out / "metrics.json").write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps({"output": str(args.out), "models": [
