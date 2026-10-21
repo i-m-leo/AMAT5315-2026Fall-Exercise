@@ -40,6 +40,17 @@ This saves the full trajectory and its settings in ignored
 `artifacts/forward-diffusion/`, and writes
 `evidence/forward-diffusion.png` at levels 0, 1, 10, 100, 500, and 1000.
 
+Animate that same trajectory (each point follows the same sample across levels)
+and print the terminal coordinate statistics with:
+
+```sh
+uv run python scripts/movie_forward_diffusion.py
+```
+
+The GIF `evidence/forward-diffusion-modes.gif` uses fixed axes from -6 to 6.
+The t=1000 population means and variances are printed and also saved with the
+movie settings under ignored `artifacts/forward-diffusion/`.
+
 ## Train the noise predictor
 
 ```sh
