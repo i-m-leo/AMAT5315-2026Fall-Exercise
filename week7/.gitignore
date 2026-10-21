@@ -1,0 +1,11 @@
+# Local environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Downloaded inputs and raw run outputs
+inputs/*
+!inputs/.gitkeep
+artifacts/*
+!artifacts/.gitkeep

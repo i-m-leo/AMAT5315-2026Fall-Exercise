@@ -1,0 +1,12 @@
+[project]
+name = "amat5315-week7"
+version = "0.1.0"
+description = "JAX target sampling and forward diffusion exercise"
+requires-python = ">=3.10"
+dependencies = ["jax[cpu]>=0.4.30", "matplotlib>=3.8", "numpy>=1.26"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
