@@ -135,6 +135,19 @@ comparison figure is `evidence/ddim-comparison.png`; selected-level trajectories
 settings, and per-mode statistics are saved under ignored
 `artifacts/ddim-comparison/`.
 
+Compare full 1000-level DDIM repeats and two DDPM noise draws from the same
+2000 starting Gaussian samples:
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/compare_ddim_ddpm.py
+```
+
+The trajectory figure shows ten paired example paths per run; the final-sample
+figure places all four sampler outputs beside 2000 exact target samples. The
+script prints the maximum DDIM trajectory and final-sample differences (zero
+for repeated deterministic DDIM). Raw arrays and settings are kept under ignored
+`artifacts/ddim-ddpm-comparison/`.
+
 Downloads and raw runs in `inputs/` and `artifacts/` are git-ignored. Evidence
 figures, source, tests, the lockfile, and the exercise configuration are
 committed.
