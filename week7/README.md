@@ -16,8 +16,9 @@ x_t=\sqrt{1-\beta_t}\,x_{t-1}+\sqrt{\beta_t}\,\epsilon_t,
 \]
 
 `scripts/diffusion.py` implements target sampling, forward noising, a
-sinusoidal time-conditioned SiLU MLP, and DDPM reverse sampling. The MLP
-architecture, time features, Adam settings, and checkpoint updates are read
+sinusoidal time-conditioned SiLU MLP, DDPM reverse sampling, selected-step
+deterministic DDIM, and the mixture's exact conditional-mean noise predictor.
+The MLP architecture, time features, Adam settings, and checkpoint updates are read
 from `diffusion.toml`. JAX uses CPU by default; an explicit `JAX_PLATFORMS`
 setting can override it.
 
@@ -115,6 +116,24 @@ nearest-centre generated-mode population, empirical centre, and per-coordinate
 population standard deviation. The full trajectory, settings, target reference,
 and per-mode counts, centres, variances, and standard deviations are retained
 under ignored `artifacts/reverse-diffusion/`.
+
+## Selected-step deterministic DDIM
+
+Compare the trained predictor with the exact conditional-mean noise predictor
+using 50 evenly spaced levels by default:
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/compare_ddim.py
+```
+
+Choose a different number of inference levels with `--inference-steps N`, or
+supply an explicit descending subset beginning at 1000, for example
+`--levels 1000,900,800,600,400,200,1`. Both predictors use the same initial
+Gaussian samples and deterministic eta=0 DDIM updates. The oracle evaluates
+`E[epsilon | x_t]` from the mixture's exact component posterior. The final
+comparison figure is `evidence/ddim-comparison.png`; selected-level trajectories,
+settings, and per-mode statistics are saved under ignored
+`artifacts/ddim-comparison/`.
 
 Downloads and raw runs in `inputs/` and `artifacts/` are git-ignored. Evidence
 figures, source, tests, the lockfile, and the exercise configuration are

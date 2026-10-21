@@ -181,3 +181,83 @@ def ddpm_sample(key: jax.Array, params: tuple, num_samples: int,
     trajectory = ddpm_trajectory(params, x_terminal, reverse_noises, betas,
                                  time_features, frequency_base, time_offset)
     return trajectory[-1]
+
+
+def select_ddim_timesteps(num_inference_steps: int,
+                          total_steps: int = 1000) -> jax.Array:
+    """Choose evenly spaced descending levels, including T and level 1."""
+    if total_steps < 1 or not 1 <= num_inference_steps <= total_steps:
+        raise ValueError("num_inference_steps must be in [1, total_steps]")
+    return jnp.rint(jnp.linspace(total_steps, 1, num_inference_steps)).astype(jnp.int32)
+
+
+def ddim_trajectory(x_terminal: jax.Array, timesteps: jax.Array,
+                    betas: jax.Array, noise_predictor) -> jax.Array:
+    """Deterministic eta=0 DDIM trajectory for selected descending levels.
+
+    ``timesteps`` contains selected 1-based levels in descending order,
+    starting at T. At each selected level t, this jumps to the next selected
+    level s (or s=0 at the end) using
+    x_s = sqrt(alpha_bar_s) * x0_hat + sqrt(1-alpha_bar_s) * epsilon_hat.
+    The returned states are ordered x_T,...,x_0. No random noise is added.
+    ``noise_predictor(x_t, t)`` must return a batch of epsilon predictions.
+    """
+    x_terminal = jnp.asarray(x_terminal, dtype=jnp.float32)
+    betas = jnp.asarray(betas, dtype=x_terminal.dtype)
+    timesteps = jnp.asarray(timesteps, dtype=jnp.int32)
+    if x_terminal.ndim != 2 or x_terminal.shape[-1] != 2:
+        raise ValueError("x_terminal must have shape (batch, 2)")
+    if timesteps.ndim != 1 or timesteps.shape[0] < 1:
+        raise ValueError("timesteps must be a non-empty 1-D array")
+    alpha_bar = jnp.concatenate((jnp.ones((1,), dtype=betas.dtype),
+                                 jnp.cumprod(1.0 - betas)))
+    previous_times = jnp.concatenate((timesteps[1:], jnp.zeros((1,), dtype=jnp.int32)))
+
+    def step(x_t, times):
+        t, s = times
+        epsilon = noise_predictor(x_t, t)
+        alpha_t = alpha_bar[t]
+        alpha_s = alpha_bar[s]
+        x0_pred = (x_t - jnp.sqrt(1.0 - alpha_t) * epsilon) / jnp.sqrt(alpha_t)
+        x_s = jnp.sqrt(alpha_s) * x0_pred + jnp.sqrt(1.0 - alpha_s) * epsilon
+        return x_s, x_s
+
+    _, later_states = lax.scan(step, x_terminal, (timesteps, previous_times))
+    return jnp.concatenate((x_terminal[jnp.newaxis, ...], later_states), axis=0)
+
+
+def ddim_sample(x_terminal: jax.Array, timesteps: jax.Array,
+                betas: jax.Array, noise_predictor) -> jax.Array:
+    """Return the final state of deterministic selected-step DDIM sampling."""
+    return ddim_trajectory(x_terminal, timesteps, betas, noise_predictor)[-1]
+
+
+def mixture_conditional_mean_noise(x_t: jax.Array, level: int | jax.Array,
+                                   betas: jax.Array,
+                                   centers: jax.Array = CENTERS,
+                                   component_variance: float = TARGET_VARIANCE) -> jax.Array:
+    """Exact E[epsilon | x_t] for the equally weighted isotropic Gaussian mixture.
+
+    Each component's forward marginal is Gaussian with mean
+    sqrt(alpha_bar_t)*center and variance
+    (1-alpha_bar_t) + alpha_bar_t*component_variance. Posterior component
+    responsibilities weight the componentwise Gaussian conditional means.
+    ``x_t`` has shape (batch, 2); ``level`` is a shared 1-based level.
+    """
+    x_t = jnp.asarray(x_t, dtype=jnp.float32)
+    betas = jnp.asarray(betas, dtype=x_t.dtype)
+    centers = jnp.asarray(centers, dtype=x_t.dtype)
+    alpha_bar = jnp.cumprod(1.0 - betas)[jnp.asarray(level, dtype=jnp.int32) - 1]
+    sqrt_alpha_bar = jnp.sqrt(alpha_bar)
+    marginal_variance = (1.0 - alpha_bar) + alpha_bar * component_variance
+    component_xt_means = sqrt_alpha_bar * centers
+    residuals = x_t[:, None, :] - component_xt_means[None, :, :]
+    log_responsibilities = -0.5 * jnp.sum(jnp.square(residuals), axis=-1) / marginal_variance
+    responsibilities = jax.nn.softmax(log_responsibilities, axis=-1)
+    conditional_x0_by_component = centers[None, :, :] + (
+        sqrt_alpha_bar * component_variance / marginal_variance
+    ) * residuals
+    conditional_x0 = jnp.sum(
+        responsibilities[:, :, None] * conditional_x0_by_component, axis=1
+    )
+    return (x_t - sqrt_alpha_bar * conditional_x0) / jnp.sqrt(1.0 - alpha_bar)

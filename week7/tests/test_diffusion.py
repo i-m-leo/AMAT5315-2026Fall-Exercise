@@ -14,11 +14,15 @@ from diffusion import (
     beta_schedule,
     ddpm_sample,
     ddpm_trajectory,
+    ddim_sample,
+    ddim_trajectory,
     forward_diffusion,
     init_noise_predictor,
+    mixture_conditional_mean_noise,
     predict_noise,
     q_sample,
     sample_target,
+    select_ddim_timesteps,
 )
 
 
@@ -40,6 +44,54 @@ def test_target_sampling_is_reproducible_and_validates_sample_count():
     np.testing.assert_array_equal(sample_target(key, 10), sample_target(key, 10))
     with pytest.raises(ValueError, match="positive"):
         sample_target(key, 0)
+
+
+def test_ddim_levels_are_selectable_and_descending():
+    levels = np.asarray(select_ddim_timesteps(5, 1000))
+    assert levels[0] == 1000 and levels[-1] == 1
+    assert np.all(np.diff(levels) < 0)
+    assert len(select_ddim_timesteps(1000, 1000)) == 1000
+    with pytest.raises(ValueError):
+        select_ddim_timesteps(0, 1000)
+    with pytest.raises(ValueError):
+        select_ddim_timesteps(1001, 1000)
+
+
+def test_ddim_trajectory_is_deterministic_for_selected_levels():
+    betas = beta_schedule(4, 0.01, 0.04)
+    levels = jnp.array([4, 2], dtype=jnp.int32)
+    initial = jnp.array([[0.4, -0.7], [-0.2, 0.3]], dtype=jnp.float32)
+    def predictor(x_t, _level):
+        return jnp.full_like(x_t, 0.1)
+    trajectory = ddim_trajectory(initial, levels, betas, predictor)
+    alpha_bar = jnp.concatenate((jnp.ones((1,)), jnp.cumprod(1.0 - betas)))
+    current = initial
+    expected = [initial]
+    for t, s in ((4, 2), (2, 0)):
+        epsilon = jnp.full_like(current, 0.1)
+        x0_pred = (current - jnp.sqrt(1.0 - alpha_bar[t]) * epsilon) / jnp.sqrt(alpha_bar[t])
+        current = jnp.sqrt(alpha_bar[s]) * x0_pred + jnp.sqrt(1.0 - alpha_bar[s]) * epsilon
+        expected.append(current)
+    np.testing.assert_allclose(np.asarray(trajectory), np.asarray(jnp.stack(expected)),
+                               rtol=1e-6, atol=1e-6)
+    repeated = ddim_trajectory(initial, levels, betas, predictor)
+    np.testing.assert_array_equal(np.asarray(trajectory), np.asarray(repeated))
+    final = ddim_sample(initial, levels, betas, predictor)
+    np.testing.assert_array_equal(np.asarray(final), np.asarray(trajectory[-1]))
+
+
+def test_mixture_conditional_mean_noise_respects_symmetry_and_component_mean():
+    betas = beta_schedule()
+    zero = jnp.zeros((2, 2), dtype=jnp.float32)
+    for level in (1, 100, 1000):
+        prediction = mixture_conditional_mean_noise(zero, level, betas)
+        np.testing.assert_allclose(np.asarray(prediction), 0.0, atol=1e-6)
+
+    level = 10
+    alpha_bar = jnp.prod(1.0 - betas[:level])
+    component_mean = jnp.sqrt(alpha_bar) * CENTERS[:1]
+    prediction = mixture_conditional_mean_noise(component_mean, level, betas)
+    np.testing.assert_allclose(np.asarray(prediction), 0.0, atol=1e-5)
 
 
 def test_mode_metrics_report_nearest_assignment_population_and_spread():
