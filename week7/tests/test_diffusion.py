@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
+from mode_metrics import assign_nearest_mode, summarize_modes
 from diffusion import (
     CENTERS,
     TARGET_VARIANCE,
@@ -39,6 +40,20 @@ def test_target_sampling_is_reproducible_and_validates_sample_count():
     np.testing.assert_array_equal(sample_target(key, 10), sample_target(key, 10))
     with pytest.raises(ValueError, match="positive"):
         sample_target(key, 0)
+
+
+def test_mode_metrics_report_nearest_assignment_population_and_spread():
+    centers = np.array([[3.0, 0.0], [-3.0, 0.0]])
+    samples = np.array([[2.8, -0.1], [3.2, 0.1], [-3.0, 0.2]])
+    labels = assign_nearest_mode(samples, centers)
+    np.testing.assert_array_equal(labels, [0, 0, 1])
+    results = summarize_modes(samples, centers, labels)
+    assert results[0]["population_count"] == 2
+    assert results[0]["population_fraction"] == pytest.approx(2 / 3)
+    np.testing.assert_allclose(results[0]["empirical_center"], [3.0, 0.0])
+    np.testing.assert_allclose(results[0]["coordinate_variance"], [0.04, 0.01])
+    np.testing.assert_allclose(results[0]["coordinate_std"], [0.2, 0.1])
+    assert results[1]["population_count"] == 1
 
 
 def test_beta_schedule_is_linear_with_requested_endpoints():

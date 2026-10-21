@@ -102,6 +102,20 @@ does not clip predicted samples, and adds no random noise at the final step.
 Generated samples and run settings are saved in ignored `artifacts/sampling/`;
 `evidence/ddpm-samples.png` compares generated samples with the target.
 
+For a 2000-sample, 1000-step reverse-process movie and per-mode evaluation, run:
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/movie_reverse_diffusion.py
+```
+
+The movie `evidence/ddpm-reverse-process.gif` animates the generated points
+from x₁₀₀₀ to x₀ beside a fixed target sample. The final comparison figure
+`evidence/ddpm-final-comparison.png` shows both distributions and a table of
+nearest-centre generated-mode population, empirical centre, and per-coordinate
+population standard deviation. The full trajectory, settings, target reference,
+and per-mode counts, centres, variances, and standard deviations are retained
+under ignored `artifacts/reverse-diffusion/`.
+
 Downloads and raw runs in `inputs/` and `artifacts/` are git-ignored. Evidence
 figures, source, tests, the lockfile, and the exercise configuration are
 committed.
