@@ -164,6 +164,46 @@ def ddpm_trajectory(params: tuple, x_terminal: jax.Array,
     return jnp.concatenate((x_terminal[jnp.newaxis, ...], later_states), axis=0)
 
 
+def ddpm_subsample_trajectory(params: tuple, x_terminal: jax.Array,
+                              timesteps: jax.Array, reverse_noises: jax.Array,
+                              betas: jax.Array, time_features: int = 32,
+                              frequency_base: float = 10_000.0,
+                              time_offset: float = -1.0) -> jax.Array:
+    """DDPM reverse path over a grid that may skip training noise levels.
+
+    ``timesteps`` is a descending grid ``T,...,0``. A jump from t to s uses
+    the effective forward variance ``1-alpha_bar_t/alpha_bar_s``. The random
+    term has this variance for s>0 and is omitted for the final jump to zero.
+    ``reverse_noises`` has shape ``(len(timesteps)-1, *x_terminal.shape)``.
+    """
+    x_terminal = jnp.asarray(x_terminal, dtype=jnp.float32)
+    betas = jnp.asarray(betas, dtype=x_terminal.dtype)
+    timesteps = jnp.asarray(timesteps, dtype=jnp.int32)
+    reverse_noises = jnp.asarray(reverse_noises, dtype=x_terminal.dtype)
+    if timesteps.ndim != 1 or timesteps.shape[0] < 2:
+        raise ValueError("timesteps must include at least one reverse jump")
+    if reverse_noises.shape != (timesteps.shape[0] - 1, *x_terminal.shape):
+        raise ValueError("reverse_noises shape must match the number of jumps and batch shape")
+    alpha_bar = jnp.concatenate((jnp.ones((1,), dtype=betas.dtype),
+                                 jnp.cumprod(1.0 - betas)))
+
+    def reverse_step(x_t, inputs):
+        t, s, noise = inputs
+        epsilon = predict_noise(params, x_t, t, time_features,
+                                frequency_base, time_offset)
+        alpha_ratio = alpha_bar[t] / alpha_bar[s]
+        jump_variance = 1.0 - alpha_ratio
+        mean = (x_t - jump_variance * epsilon / jnp.sqrt(1.0 - alpha_bar[t])) / jnp.sqrt(alpha_ratio)
+        x_s = mean + jnp.where(s > 0, jnp.sqrt(jump_variance) * noise, 0.0)
+        return x_s, x_s
+
+    _, later_states = lax.scan(
+        reverse_step, x_terminal,
+        (timesteps[:-1], timesteps[1:], reverse_noises),
+    )
+    return jnp.concatenate((x_terminal[jnp.newaxis, ...], later_states), axis=0)
+
+
 def ddpm_sample(key: jax.Array, params: tuple, num_samples: int,
                 betas: jax.Array, time_features: int = 32,
                 frequency_base: float = 10_000.0,

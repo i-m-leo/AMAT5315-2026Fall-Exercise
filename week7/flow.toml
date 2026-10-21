@@ -1,0 +1,21 @@
+[model]
+hidden_widths = [128, 128, 128]
+activation = "SiLU"
+time_features = 32
+time_frequency_base = 10_000.0
+time_scale = 1000.0
+weight_initialization = "normal with std 1/sqrt(input width)"
+bias_initialization = 0.0
+
+[training]
+updates = 25_000
+batch_size = 512
+optimizer = "Adam"
+beta1 = 0.9
+beta2 = 0.999
+epsilon = 1e-8
+learning_rate = 0.001
+learning_rate_decay = "cosine"
+final_learning_rate = 0.0
+precision = "float32"
+seed = 2029

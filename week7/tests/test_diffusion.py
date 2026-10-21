@@ -8,12 +8,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 from mode_metrics import assign_nearest_mode, summarize_modes
+from flow_matching import exact_mixture_velocity, flow_time_embedding, flow_trajectory, predict_velocity
 from diffusion import (
     CENTERS,
     TARGET_VARIANCE,
     beta_schedule,
     ddpm_sample,
     ddpm_trajectory,
+    ddpm_subsample_trajectory,
     ddim_sample,
     ddim_trajectory,
     forward_diffusion,
@@ -44,6 +46,38 @@ def test_target_sampling_is_reproducible_and_validates_sample_count():
     np.testing.assert_array_equal(sample_target(key, 10), sample_target(key, 10))
     with pytest.raises(ValueError, match="positive"):
         sample_target(key, 0)
+
+
+def test_subsampled_ddpm_matches_adjacent_ddpm_on_full_grid():
+    betas = beta_schedule(4, 0.01, 0.04)
+    params = init_noise_predictor(jax.random.PRNGKey(41), [4], time_features=4)
+    params = jax.tree.map(jnp.zeros_like, params)
+    initial = jnp.array([[0.4, -0.7]], dtype=jnp.float32)
+    noises = jnp.arange(8, dtype=jnp.float32).reshape(4, 1, 2) / 10
+    full = ddpm_trajectory(params, initial, noises, betas, time_features=4)
+    grid = ddpm_subsample_trajectory(params, initial, jnp.array([4, 3, 2, 1, 0]),
+                                     noises, betas, time_features=4)
+    np.testing.assert_allclose(np.asarray(full), np.asarray(grid), rtol=1e-6, atol=1e-6)
+
+
+def test_flow_embedding_velocity_and_exact_marginal_endpoints():
+    times = jnp.array([0.1, 0.5, 0.9])
+    assert flow_time_embedding(times).shape == (3, 32)
+    params = init_noise_predictor(jax.random.PRNGKey(45), [8], time_features=4)
+    prediction = predict_velocity(params, jnp.ones((3, 2)), times, time_features=4)
+    assert prediction.shape == (3, 2)
+    x = jnp.array([[-2.0, 1.0], [0.25, -0.5]], dtype=jnp.float32)
+    np.testing.assert_allclose(np.asarray(exact_mixture_velocity(x, 0.0)), -np.asarray(x), atol=1e-6)
+    np.testing.assert_allclose(np.asarray(exact_mixture_velocity(x, 1.0)), np.asarray(x), atol=1e-6)
+
+
+def test_flow_euler_trajectory_uses_decreasing_time_grid():
+    x1 = jnp.array([[1.0, -2.0]], dtype=jnp.float32)
+    times = jnp.array([1.0, 0.5, 0.0])
+    velocity = lambda x, s: jnp.ones_like(x) * s
+    path = flow_trajectory(x1, times, velocity)
+    expected = jnp.array([[[1.0, -2.0]], [[0.5, -2.5]], [[0.25, -2.75]]])
+    np.testing.assert_allclose(np.asarray(path), np.asarray(expected), atol=1e-6)
 
 
 def test_ddim_levels_are_selectable_and_descending():
