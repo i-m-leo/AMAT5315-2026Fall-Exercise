@@ -1,10 +1,4 @@
-# Week 7: Gaussian-mixture forward diffusion
-
-This exercise implements only target sampling and the forward diffusion process
-in JAX. It does not train a neural network and does not implement reverse
-sampling.
-
-## Model
+# Week 7: Gaussian-mixture diffusion in JAX
 
 The target is the equally weighted mixture
 
@@ -13,38 +7,76 @@ p(x_0)=\tfrac14\sum_{k=1}^4\mathcal N(x_0;\mu_k,0.09I),\qquad
 \mu_k\in\{(3,0),(0,3),(-3,0),(0,-3)\}.
 \]
 
-The linear schedule contains 1000 per-step variances,
-`beta_t = linspace(0.0001, 0.02, 1000)`. Each forward transition is
+The linear schedule has 1000 per-step variances,
+`beta_t = linspace(0.0001, 0.02, 1000)`. The forward transition is
 
 \[
 x_t=\sqrt{1-\beta_t}\,x_{t-1}+\sqrt{\beta_t}\,\epsilon_t,
 \qquad \epsilon_t\sim\mathcal N(0,I).
 \]
 
-`scripts/diffusion.py` provides `sample_target`, `beta_schedule`,
-`forward_diffusion` (the full trajectory including `x_0`), and `q_sample`
-(the closed-form marginal at a 1-based diffusion level). JAX is configured to
-use CPU by default; setting `JAX_PLATFORMS` explicitly overrides that default.
+`scripts/diffusion.py` implements target sampling, forward noising, a
+sinusoidal time-conditioned SiLU MLP, and DDPM reverse sampling. The MLP
+architecture, time features, Adam settings, and checkpoint updates are read
+from `diffusion.toml`. JAX uses CPU by default; an explicit `JAX_PLATFORMS`
+setting can override it.
 
-## Run
+## Setup and tests
 
-From `week7/`, install with `uv` and run tests:
+From `week7/`:
 
 ```sh
 uv sync --extra test
 uv run pytest
 ```
 
-Generate a seeded 1000-step run and visualization on CPU:
+## Forward process
 
 ```sh
 JAX_PLATFORMS=cpu uv run python scripts/forward_diffusion.py
 ```
 
-The script writes the complete trajectory, beta schedule, and run settings to
-ignored `artifacts/forward-diffusion/`. It saves a plot of levels 0, 1, 10,
-100, 500, and 1000 to `evidence/forward-diffusion.png`. `--num-samples`,
-`--seed`, `--output-dir`, and `--figure` can be used to customize the run.
+This saves the full trajectory and its settings in ignored
+`artifacts/forward-diffusion/`, and writes
+`evidence/forward-diffusion.png` at levels 0, 1, 10, 100, 500, and 1000.
 
-Downloads and raw outputs under `inputs/` and `artifacts/` are git-ignored;
-the evidence figure and source are committed.
+## Train the noise predictor
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/train_diffusion.py \
+  --config diffusion.toml --out artifacts/training
+```
+
+At every update, the script draws fresh target examples, uniformly draws
+integer noise levels 1 through 1000, adds Gaussian noise using the closed-form
+forward marginal, and minimizes mean squared error between the sampled and
+predicted noise. It uses the configured cosine-decayed Adam optimizer. The
+training output includes a copy of `diffusion.toml`, effective `settings.json`,
+per-update `loss-history.csv`, and model checkpoints at every configured update.
+The update-0 checkpoint is saved before any optimization. Plot the recorded loss
+history with:
+
+```sh
+uv run python scripts/plot_training.py
+```
+
+This saves `evidence/noise-prediction-loss.png`.
+
+## DDPM reverse sampling
+
+After training:
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/sample_diffusion.py \
+  --config diffusion.toml --checkpoint artifacts/training/checkpoint-update-25000.npz
+```
+
+The sampler starts from standard Gaussian noise and uses the learned noise
+predictor in the DDPM reverse mean. It uses reverse-step variance `beta_t`,
+does not clip predicted samples, and adds no random noise at the final step.
+Generated samples and run settings are saved in ignored `artifacts/sampling/`;
+`evidence/ddpm-samples.png` compares generated samples with the target.
+
+Downloads and raw runs in `inputs/` and `artifacts/` are git-ignored. Evidence
+figures, source, tests, the lockfile, and the exercise configuration are
+committed.

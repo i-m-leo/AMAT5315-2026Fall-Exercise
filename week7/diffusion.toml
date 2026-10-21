@@ -1,0 +1,23 @@
+[model]
+hidden_widths        = [128, 128, 128]
+activation           = "SiLU" # u / (1 + exp(-u)), also called swish
+time_features        = 32     # 16 sine and 16 cosine features
+time_frequency_base  = 10_000.0
+time_offset          = -1     # Features use t - 1 for levels t = 1,...,1000
+# For j = 0,...,15, use sine and cosine of
+# (t + time_offset) * time_frequency_base ** (-j / 16).
+weight_initialization = "normal with std 1/sqrt(input width)"
+bias_initialization  = 0.0
+[training]
+updates              = 25_000
+batch_size           = 512    # Fresh target samples at every update
+optimizer            = "Adam"
+beta1                = 0.9
+beta2                = 0.999
+epsilon              = 1e-8
+learning_rate        = 0.001
+learning_rate_decay  = "cosine"
+final_learning_rate  = 0.0
+precision            = "float32"
+seed                 = 2026
+checkpoint_updates   = [0, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 25000]

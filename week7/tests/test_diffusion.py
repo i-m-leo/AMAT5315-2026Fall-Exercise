@@ -7,7 +7,17 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from diffusion import CENTERS, TARGET_VARIANCE, beta_schedule, forward_diffusion, q_sample, sample_target
+from diffusion import (
+    CENTERS,
+    TARGET_VARIANCE,
+    beta_schedule,
+    ddpm_sample,
+    forward_diffusion,
+    init_noise_predictor,
+    predict_noise,
+    q_sample,
+    sample_target,
+)
 
 
 def test_target_samples_follow_equally_weighted_gaussian_mixture():
@@ -63,3 +73,32 @@ def test_forward_trajectory_starts_at_input_and_reaches_marginal_variance():
     expected_variance = 1.0 - float(jnp.prod(1.0 - betas))
     np.testing.assert_allclose(trajectory[-1].mean(axis=0), 0.0, atol=0.08)
     np.testing.assert_allclose(trajectory[-1].var(axis=0), expected_variance, atol=0.10)
+
+
+def test_time_conditioned_noise_predictor_shapes_and_depends_on_level():
+    params = init_noise_predictor(jax.random.PRNGKey(2), [8, 8], time_features=4)
+    x_t = jnp.ones((3, 2), dtype=jnp.float32)
+    predictions = predict_noise(params, x_t, jnp.array([1, 20, 100]), time_features=4)
+    assert predictions.shape == (3, 2)
+    assert np.isfinite(np.asarray(predictions)).all()
+    assert not np.allclose(np.asarray(predictions[0]), np.asarray(predictions[1]))
+
+
+def test_ddpm_uses_beta_variance_without_clipping_or_final_noise():
+    betas = beta_schedule(3, 0.01, 0.03)
+    params = init_noise_predictor(jax.random.PRNGKey(5), [8], time_features=4)
+    params = jax.tree.map(jnp.zeros_like, params)  # Predict epsilon == 0 at every level.
+    key = jax.random.PRNGKey(13)
+    actual = ddpm_sample(key, params, 64, betas, time_features=4)
+
+    initial_key, steps_key = jax.random.split(key)
+    current = jax.random.normal(initial_key, (64, 2), dtype=jnp.float32)
+    step_keys = jax.random.split(steps_key, len(betas))
+    for scan_index, level_index in enumerate((2, 1, 0)):
+        beta = betas[level_index]
+        current = current / jnp.sqrt(1.0 - beta)
+        if level_index > 0:
+            noise = jax.random.normal(step_keys[scan_index], current.shape, dtype=current.dtype)
+            current = current + jnp.sqrt(beta) * noise
+    np.testing.assert_allclose(np.asarray(actual), np.asarray(current), rtol=1e-6, atol=1e-6)
+    assert np.max(np.abs(np.asarray(actual))) > 1.0  # No x_0 clipping.
