@@ -12,6 +12,7 @@ from diffusion import (
     TARGET_VARIANCE,
     beta_schedule,
     ddpm_sample,
+    ddpm_trajectory,
     forward_diffusion,
     init_noise_predictor,
     predict_noise,
@@ -102,3 +103,15 @@ def test_ddpm_uses_beta_variance_without_clipping_or_final_noise():
             current = current + jnp.sqrt(beta) * noise
     np.testing.assert_allclose(np.asarray(actual), np.asarray(current), rtol=1e-6, atol=1e-6)
     assert np.max(np.abs(np.asarray(actual))) > 1.0  # No x_0 clipping.
+
+    terminal = jnp.array([[0.25, -0.5]], dtype=jnp.float32)
+    fixed_noise = jnp.arange(6, dtype=jnp.float32).reshape(3, 1, 2) / 10
+    path = ddpm_trajectory(params, terminal, fixed_noise, betas, time_features=4)
+    assert path.shape == (4, 1, 2)  # x_T through x_0.
+    manual = terminal
+    for scan_index, level_index in enumerate((2, 1, 0)):
+        beta = betas[level_index]
+        manual = manual / jnp.sqrt(1.0 - beta)
+        if level_index > 0:
+            manual = manual + jnp.sqrt(beta) * fixed_noise[scan_index]
+    np.testing.assert_allclose(np.asarray(path[-1]), np.asarray(manual), rtol=1e-6, atol=1e-6)

@@ -128,28 +128,28 @@ def predict_noise(params: tuple, x_t: jax.Array, levels: int | jax.Array,
     return hidden @ weights + biases
 
 
-def ddpm_sample(key: jax.Array, params: tuple, num_samples: int,
-                betas: jax.Array, time_features: int = 32,
-                frequency_base: float = 10_000.0,
-                time_offset: float = -1.0) -> jax.Array:
-    """Generate x_0 using DDPM reverse steps with variance beta_t.
+def ddpm_trajectory(params: tuple, x_terminal: jax.Array,
+                    reverse_noises: jax.Array, betas: jax.Array,
+                    time_features: int = 32, frequency_base: float = 10_000.0,
+                    time_offset: float = -1.0) -> jax.Array:
+    """Return x_T,...,x_0 using caller-supplied noise for matched trajectories.
 
-    No predicted x_0 clipping is applied. The stochastic term is omitted at
-    t=1, so the final reverse step is deterministic given x_1 and the model.
+    ``reverse_noises`` is ordered by reverse scan step (t=T,...,1), with shape
+    ``(T, *x_terminal.shape)``. Its last entry, corresponding to t=1, is
+    intentionally ignored. No x_0 clipping is applied.
     """
-    if num_samples < 1:
-        raise ValueError("num_samples must be positive")
+    x_terminal = jnp.asarray(x_terminal, dtype=jnp.float32)
     betas = jnp.asarray(betas, dtype=jnp.float32)
+    reverse_noises = jnp.asarray(reverse_noises, dtype=x_terminal.dtype)
     num_steps = betas.shape[0]
+    if reverse_noises.shape != (num_steps, *x_terminal.shape):
+        raise ValueError("reverse_noises must have shape (T, *x_terminal.shape)")
     alpha = 1.0 - betas
     alpha_bar = jnp.cumprod(alpha)
-    initial_key, steps_key = jax.random.split(key)
-    x_terminal = jax.random.normal(initial_key, (num_samples, 2), dtype=jnp.float32)
-    step_keys = jax.random.split(steps_key, num_steps)
     reverse_indices = jnp.arange(num_steps - 1, -1, -1)
 
     def reverse_step(x_t, inputs):
-        index, step_key = inputs
+        index, noise = inputs
         level = index + 1
         epsilon = predict_noise(params, x_t, level, time_features,
                                 frequency_base, time_offset)
@@ -157,9 +157,27 @@ def ddpm_sample(key: jax.Array, params: tuple, num_samples: int,
         alpha_t = alpha[index]
         alpha_bar_t = alpha_bar[index]
         mean = (x_t - beta_t * epsilon / jnp.sqrt(1.0 - alpha_bar_t)) / jnp.sqrt(alpha_t)
-        noise = jax.random.normal(step_key, x_t.shape, dtype=x_t.dtype)
         previous = mean + jnp.where(index > 0, jnp.sqrt(beta_t) * noise, 0.0)
-        return previous, None
+        return previous, previous
 
-    final, _ = lax.scan(reverse_step, x_terminal, (reverse_indices, step_keys))
-    return final
+    _, later_states = lax.scan(reverse_step, x_terminal, (reverse_indices, reverse_noises))
+    return jnp.concatenate((x_terminal[jnp.newaxis, ...], later_states), axis=0)
+
+
+def ddpm_sample(key: jax.Array, params: tuple, num_samples: int,
+                betas: jax.Array, time_features: int = 32,
+                frequency_base: float = 10_000.0,
+                time_offset: float = -1.0) -> jax.Array:
+    """Generate x_0 using DDPM reverse steps with variance beta_t."""
+    if num_samples < 1:
+        raise ValueError("num_samples must be positive")
+    betas = jnp.asarray(betas, dtype=jnp.float32)
+    initial_key, steps_key = jax.random.split(key)
+    x_terminal = jax.random.normal(initial_key, (num_samples, 2), dtype=jnp.float32)
+    step_keys = jax.random.split(steps_key, betas.shape[0])
+    reverse_noises = jax.vmap(
+        lambda step_key: jax.random.normal(step_key, x_terminal.shape, dtype=x_terminal.dtype)
+    )(step_keys)
+    trajectory = ddpm_trajectory(params, x_terminal, reverse_noises, betas,
+                                 time_features, frequency_base, time_offset)
+    return trajectory[-1]

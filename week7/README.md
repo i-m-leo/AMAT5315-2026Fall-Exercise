@@ -73,6 +73,20 @@ uv run python scripts/plot_training.py
 
 This saves `evidence/noise-prediction-loss.png`.
 
+Animate the configured checkpoints after training:
+
+```sh
+JAX_PLATFORMS=cpu uv run python scripts/movie_training_progress.py
+```
+
+`evidence/training-progress.gif` has one stage per configured update. Each stage
+shows ten complete DDPM reverse paths and the loss history through that update.
+The same ten initial Gaussian samples and reverse-step noises are reused at
+every checkpoint for a paired comparison. Coordinate limits adapt per stage to
+keep even the untrained model's large outputs visible; the current scale is
+labeled. The paths, shared random inputs, and movie settings are retained under
+ignored `artifacts/training-progress/`.
+
 ## DDPM reverse sampling
 
 After training:
