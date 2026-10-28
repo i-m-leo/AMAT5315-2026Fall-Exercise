@@ -1,0 +1,21 @@
+[project]
+name = "amat5315-week8"
+version = "0.1.0"
+description = "Language models and the transformer: embeddings, n-grams, memories, attention, TinyStories transformer, scaling laws"
+requires-python = ">=3.10"
+dependencies = [
+  "jax[cpu]>=0.4.30",
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+  "safetensors>=0.4",
+  "scipy>=1.13",
+  "sentencepiece>=0.2",
+  "tokenizers>=0.20",
+  "tomli>=2; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
